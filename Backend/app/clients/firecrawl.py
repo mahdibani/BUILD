@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 import httpx
 
@@ -18,14 +19,68 @@ class FirecrawlClient:
         seen_urls: set[str] = set()
 
         for query in intent.search_queries:
-            search_results = await self.search(query)
+            try:
+                search_results = await self.search(query)
+            except Exception as exc:
+                discovered.append(
+                    ContentChunk(
+                        content=f"Firecrawl search failed for query '{query}': {exc}",
+                        source="firecrawl_error",
+                        topic=topic,
+                        intent=intent.intent,
+                        metadata={"query": query, "stage": "search"},
+                    )
+                )
+                continue
+
             for result in search_results[: self.settings.firecrawl_search_limit]:
-                url = result.get("url")
+                url = self._normalize_url(result.get("url"))
                 if not url or url in seen_urls:
                     continue
                 seen_urls.add(url)
-                scraped = await self.scrape(url)
-                content = scraped.get("markdown") or result.get("description") or result.get("title")
+                try:
+                    scraped = await self.scrape(url)
+                    content = (
+                        scraped.get("markdown")
+                        or scraped.get("summary")
+                        or result.get("description")
+                        or result.get("title")
+                    )
+                except Exception as exc:
+                    fallback = result.get("description") or result.get("title")
+                    if fallback:
+                        discovered.append(
+                            ContentChunk(
+                                content=fallback,
+                                source="firecrawl_search_fallback",
+                                topic=topic,
+                                intent=intent.intent,
+                                metadata={
+                                    "query": query,
+                                    "url": url,
+                                    "title": result.get("title"),
+                                    "stage": "scrape_fallback",
+                                    "warning": str(exc),
+                                },
+                            )
+                        )
+                    else:
+                        discovered.append(
+                            ContentChunk(
+                                content=f"Firecrawl scrape failed for {url}: {exc}",
+                                source="firecrawl_error",
+                                topic=topic,
+                                intent=intent.intent,
+                                metadata={
+                                    "query": query,
+                                    "url": url,
+                                    "title": result.get("title"),
+                                    "stage": "scrape",
+                                },
+                            )
+                        )
+                    continue
+
                 if not content:
                     continue
                 discovered.append(
@@ -59,13 +114,15 @@ class FirecrawlClient:
         return results
 
     async def scrape(self, url: str) -> dict[str, Any]:
+        normalized_url = self._normalize_url(url)
         data = await self._post_json(
             "/v1/scrape",
             {
-                "url": url,
-                "formats": ["markdown"],
-                "onlyMainContent": True,
-                "parsePDF": True,
+                "url": normalized_url,
+                "formats": ["markdown", "summary"],
+                "onlyMainContent": False,
+                "maxAge": 172800000,
+                "parsers": ["pdf"],
             },
         )
         return data.get("data", data)
@@ -80,5 +137,18 @@ class FirecrawlClient:
         }
         async with httpx.AsyncClient(base_url=self.base_url, timeout=90.0) as client:
             response = await client.post(path, headers=headers, json=payload)
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise RuntimeError(
+                    f"Firecrawl request failed with status {response.status_code}: {response.text}"
+                ) from exc
             return response.json()
+
+    @staticmethod
+    def _normalize_url(url: str | None) -> str | None:
+        if not url:
+            return None
+        if urlparse(url).scheme:
+            return url
+        return f"https://{url.lstrip('/')}"

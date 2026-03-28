@@ -21,6 +21,16 @@ class QdrantStore:
     def ensure_collection(self) -> None:
         existing = {collection.name for collection in self.client.get_collections().collections}
         if self.settings.qdrant_collection in existing:
+            collection_info = self.client.get_collection(self.settings.qdrant_collection)
+            vectors_config = collection_info.config.params.vectors
+            current_size = getattr(vectors_config, "size", None)
+            if current_size and current_size != self.settings.gemini_embedding_dimension:
+                raise RuntimeError(
+                    "Qdrant collection vector size does not match the configured embedding dimension. "
+                    f"Collection '{self.settings.qdrant_collection}' is size {current_size}, "
+                    f"but the backend is configured for {self.settings.gemini_embedding_dimension}. "
+                    "Delete and recreate the collection or reset local Qdrant storage."
+                )
             return
 
         self.client.create_collection(
