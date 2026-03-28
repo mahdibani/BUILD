@@ -4,3 +4,4 @@ _stitch/
 **/__pycache__/
 *.pyc
 Backend/.env
+Backend/.env.example
