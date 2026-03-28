@@ -5,6 +5,8 @@ import MaterialIcon from "../components/MaterialIcon";
 import PageTransition from "../components/PageTransition";
 import { art, councilAgents, pitchCards } from "../data/content";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+
 const stagePositions = {
   kaito: "member-kaito",
   mei: "member-mei",
@@ -21,6 +23,10 @@ export default function WorkshopPage() {
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkDraft, setLinkDraft] = useState("");
   const [attachments, setAttachments] = useState([]);
+  const [allowWebSearch, setAllowWebSearch] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [intakeResult, setIntakeResult] = useState(null);
 
   const selectedPitch = useMemo(
     () => pitchCards.find((card) => card.id === selectedPitchId) ?? pitchCards[0],
@@ -29,11 +35,6 @@ export default function WorkshopPage() {
 
   const stageAgents = councilAgents.filter((agent) => agent.id !== "kuro");
   const critic = councilAgents.find((agent) => agent.id === "kuro");
-
-  const handleSend = () => {
-    setShowToast(true);
-    window.setTimeout(() => setShowToast(false), 2600);
-  };
 
   const uploadOptions = [
     { key: "image", label: "Image", icon: "image", accept: "image/*" },
@@ -54,6 +55,7 @@ export default function WorkshopPage() {
         id: `${type}-${file.name}-${file.lastModified}`,
         type,
         label: file.name,
+        file,
       })),
     ]);
   };
@@ -70,6 +72,7 @@ export default function WorkshopPage() {
         id: `link-${normalized}`,
         type: "link",
         label: normalized,
+        url: normalized,
       },
     ]);
     setLinkDraft("");
@@ -78,6 +81,50 @@ export default function WorkshopPage() {
 
   const handleRemoveAttachment = (id) => {
     setAttachments((current) => current.filter((item) => item.id !== id));
+  };
+
+  const handleSend = async () => {
+    if (!idea.trim()) {
+      setSubmitError("Add a topic before sending the pitch to the backend.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError("");
+    setIntakeResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("topic", idea.trim());
+      formData.append("allow_web_search", String(allowWebSearch));
+
+      attachments.forEach((attachment) => {
+        if (attachment.type === "link" && attachment.url) {
+          formData.append("resource_urls", attachment.url);
+        } else if (attachment.file) {
+          formData.append("files", attachment.file, attachment.file.name);
+        }
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/presentations/intake`, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const details = await response.text();
+        throw new Error(details || "The backend request failed.");
+      }
+
+      const result = await response.json();
+      setIntakeResult(result);
+      setShowToast(true);
+      window.setTimeout(() => setShowToast(false), 2600);
+    } catch (error) {
+      setSubmitError(error.message || "Something went wrong while calling the backend.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -133,6 +180,15 @@ export default function WorkshopPage() {
                     <MaterialIcon name="link" className="upload-chip-icon" />
                     <span>Website</span>
                   </button>
+
+                  <button
+                    className={`upload-chip ${allowWebSearch ? "is-active" : ""}`.trim()}
+                    type="button"
+                    onClick={() => setAllowWebSearch((current) => !current)}
+                  >
+                    <MaterialIcon name="travel_explore" className="upload-chip-icon" />
+                    <span>{allowWebSearch ? "Web Search On" : "Web Search Off"}</span>
+                  </button>
                 </div>
 
                 {showLinkInput ? (
@@ -168,6 +224,20 @@ export default function WorkshopPage() {
                     ))}
                   </div>
                 ) : null}
+                {submitError ? <div className="submission-banner is-error">{submitError}</div> : null}
+                {intakeResult ? (
+                  <div className="submission-banner is-success">
+                    <strong>
+                      Stored {intakeResult.stored_points} memory orbs under the {intakeResult.intent.intent} intent.
+                    </strong>
+                    <span>
+                      Scenario: {intakeResult.scenario.replaceAll("_", " ")} | Sources:{" "}
+                      {Object.entries(intakeResult.source_breakdown)
+                        .map(([source, count]) => `${source} (${count})`)
+                        .join(", ")}
+                    </span>
+                  </div>
+                ) : null}
                 <div className="sheet-meta">
                   <div className="draft-meta">
                     <span className="dot" />
@@ -177,8 +247,14 @@ export default function WorkshopPage() {
                     <button className="icon-button" type="button" aria-label="Edit draft">
                       <MaterialIcon name="stylus" />
                     </button>
-                    <button className="icon-button" type="button" aria-label="Send to council" onClick={handleSend}>
-                      <MaterialIcon name="send" />
+                    <button
+                      className="icon-button"
+                      type="button"
+                      aria-label="Send to council"
+                      onClick={handleSend}
+                      disabled={isSubmitting}
+                    >
+                      <MaterialIcon name={isSubmitting ? "progress_activity" : "send"} />
                     </button>
                   </div>
                 </div>
@@ -228,7 +304,10 @@ export default function WorkshopPage() {
               <div className="pitch-panel-header">
                 <div>
                   <h2>Pitch Canvas</h2>
-                  <p>Choose a storytelling lens and the council will tune its critique.</p>
+                  <p>
+                    Choose a storytelling lens and the council will tune its critique.
+                    {intakeResult ? ` Latest intent: ${intakeResult.intent.intent}.` : ""}
+                  </p>
                 </div>
               </div>
 

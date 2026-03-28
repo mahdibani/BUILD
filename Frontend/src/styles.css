@@ -676,6 +676,12 @@ img {
   color: var(--primary);
 }
 
+.upload-chip:disabled,
+.icon-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
 .upload-chip-icon {
   font-size: 1.1rem;
 }
@@ -762,6 +768,31 @@ img {
 
 .attachment-remove:hover {
   background: rgba(248, 243, 235, 0.9);
+}
+
+.submission-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  box-shadow: 0 10px 24px rgba(52, 50, 43, 0.06);
+}
+
+.submission-banner strong,
+.submission-banner span {
+  line-height: 1.5;
+}
+
+.submission-banner.is-success {
+  background: rgba(215, 250, 216, 0.85);
+  color: #436147;
+}
+
+.submission-banner.is-error {
+  background: rgba(245, 105, 101, 0.12);
+  color: #7b1f1f;
 }
 
 .sheet-meta,
