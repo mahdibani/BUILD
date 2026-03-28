@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     text_chunk_overlap: int = Field(default=400)
     pdf_pages_per_chunk: int = Field(default=6)
     inline_media_limit_bytes: int = Field(default=20_000_000)
+
+    @field_validator("qdrant_api_key", mode="before")
+    @classmethod
+    def empty_qdrant_api_key_to_none(cls, value: str | None):
+        if value in ("", None):
+            return None
+        return value
 
 
 @lru_cache(maxsize=1)

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Literal
 
 from fastapi import FastAPI, File, Form, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.clients.firecrawl import FirecrawlClient
 from app.clients.gemini import GeminiClient
@@ -42,6 +43,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.get("/health")
 async def healthcheck() -> dict[str, str]:
@@ -51,9 +65,9 @@ async def healthcheck() -> dict[str, str]:
 @app.post("/api/presentations/intake", response_model=IntakeResponse)
 async def intake_presentation(
     topic: Annotated[str, Form(...)],
-    allow_web_search: Annotated[bool, Form(False)] = False,
-    files: Annotated[list[UploadFile] | None, File(default=None)] = None,
-    resource_urls: Annotated[list[str] | None, Form(default=None)] = None,
+    allow_web_search: Annotated[bool, Form()] = False,
+    files: Annotated[list[UploadFile] | None, File()] = None,
+    resource_urls: Annotated[list[str] | None, Form()] = None,
 ) -> IntakeResponse:
     return await pipeline.intake(
         topic=topic,
