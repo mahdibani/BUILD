@@ -1,3 +1,6 @@
 Frontend/node_modules/
 Frontend/dist/
 _stitch/
+**/__pycache__/
+*.pyc
+Backend/.env

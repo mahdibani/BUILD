@@ -1,0 +1,36 @@
+from functools import lru_cache
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    app_name: str = "Build Presentation Backend"
+    gemini_api_key: str = Field(default="")
+    firecrawl_api_key: str = Field(default="")
+    qdrant_url: str = Field(default="http://localhost:6333")
+    qdrant_api_key: str | None = Field(default=None)
+    qdrant_collection: str = Field(default="presentation_memory")
+
+    gemini_classifier_model: str = Field(default="gemini-1.5-flash")
+    gemini_generation_model: str = Field(default="gemini-1.5-flash")
+    gemini_embedding_model: str = Field(default="text-embedding-004")
+    gemini_embedding_dimension: int = Field(default=768)
+
+    firecrawl_search_limit: int = Field(default=3)
+    max_text_chars: int = Field(default=3500)
+    text_chunk_overlap: int = Field(default=400)
+    pdf_pages_per_chunk: int = Field(default=6)
+    inline_media_limit_bytes: int = Field(default=20_000_000)
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    return Settings()
