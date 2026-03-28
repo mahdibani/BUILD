@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppShell from "../components/AppShell";
 import MaterialIcon from "../components/MaterialIcon";
@@ -14,9 +14,13 @@ const stagePositions = {
 
 export default function WorkshopPage() {
   const navigate = useNavigate();
-  const [idea, setIdea] = useState("Build is a multimodal AI studio for high-stakes presentations.");
+  const fileInputsRef = useRef({});
+  const [idea, setIdea] = useState("");
   const [selectedPitchId, setSelectedPitchId] = useState(pitchCards[0].id);
   const [showToast, setShowToast] = useState(false);
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkDraft, setLinkDraft] = useState("");
+  const [attachments, setAttachments] = useState([]);
 
   const selectedPitch = useMemo(
     () => pitchCards.find((card) => card.id === selectedPitchId) ?? pitchCards[0],
@@ -29,6 +33,51 @@ export default function WorkshopPage() {
   const handleSend = () => {
     setShowToast(true);
     window.setTimeout(() => setShowToast(false), 2600);
+  };
+
+  const uploadOptions = [
+    { key: "image", label: "Image", icon: "image", accept: "image/*" },
+    { key: "video", label: "Video", icon: "movie", accept: "video/*" },
+    { key: "pdf", label: "PDF", icon: "picture_as_pdf", accept: ".pdf,application/pdf" },
+    { key: "audio", label: "Audio", icon: "graphic_eq", accept: "audio/*" },
+  ];
+
+  const handleFilePick = (type, files) => {
+    const pickedFiles = Array.from(files ?? []);
+    if (!pickedFiles.length) {
+      return;
+    }
+
+    setAttachments((current) => [
+      ...current,
+      ...pickedFiles.map((file) => ({
+        id: `${type}-${file.name}-${file.lastModified}`,
+        type,
+        label: file.name,
+      })),
+    ]);
+  };
+
+  const handleAddLink = () => {
+    const normalized = linkDraft.trim();
+    if (!normalized) {
+      return;
+    }
+
+    setAttachments((current) => [
+      ...current,
+      {
+        id: `link-${normalized}`,
+        type: "link",
+        label: normalized,
+      },
+    ]);
+    setLinkDraft("");
+    setShowLinkInput(false);
+  };
+
+  const handleRemoveAttachment = (id) => {
+    setAttachments((current) => current.filter((item) => item.id !== id));
   };
 
   return (
@@ -50,6 +99,75 @@ export default function WorkshopPage() {
                   onChange={(event) => setIdea(event.target.value)}
                   placeholder="Unfurl your idea here..."
                 />
+                <div className="upload-toolbar">
+                  {uploadOptions.map((option) => (
+                    <div key={option.key}>
+                      <input
+                        ref={(node) => {
+                          fileInputsRef.current[option.key] = node;
+                        }}
+                        className="sr-only-input"
+                        type="file"
+                        accept={option.accept}
+                        onChange={(event) => {
+                          handleFilePick(option.key, event.target.files);
+                          event.target.value = "";
+                        }}
+                      />
+                      <button
+                        className="upload-chip"
+                        type="button"
+                        onClick={() => fileInputsRef.current[option.key]?.click()}
+                      >
+                        <MaterialIcon name={option.icon} className="upload-chip-icon" />
+                        <span>{option.label}</span>
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    className={`upload-chip ${showLinkInput ? "is-active" : ""}`.trim()}
+                    type="button"
+                    onClick={() => setShowLinkInput((current) => !current)}
+                  >
+                    <MaterialIcon name="link" className="upload-chip-icon" />
+                    <span>Website</span>
+                  </button>
+                </div>
+
+                {showLinkInput ? (
+                  <div className="link-entry-row">
+                    <input
+                      className="link-entry-input"
+                      type="url"
+                      value={linkDraft}
+                      onChange={(event) => setLinkDraft(event.target.value)}
+                      placeholder="Paste a website link..."
+                    />
+                    <button className="link-add-button" type="button" onClick={handleAddLink}>
+                      Add link
+                    </button>
+                  </div>
+                ) : null}
+
+                {attachments.length ? (
+                  <div className="attachment-list">
+                    {attachments.map((attachment) => (
+                      <div key={attachment.id} className="attachment-pill">
+                        <span className="attachment-type">{attachment.type}</span>
+                        <span className="attachment-label">{attachment.label}</span>
+                        <button
+                          className="attachment-remove"
+                          type="button"
+                          aria-label={`Remove ${attachment.label}`}
+                          onClick={() => handleRemoveAttachment(attachment.id)}
+                        >
+                          <MaterialIcon name="close" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 <div className="sheet-meta">
                   <div className="draft-meta">
                     <span className="dot" />

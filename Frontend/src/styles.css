@@ -639,6 +639,131 @@ img {
   color: rgba(126, 122, 113, 0.64);
 }
 
+.sr-only-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.upload-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.upload-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.7rem 0.95rem;
+  border-radius: 999px;
+  background: rgba(248, 243, 235, 0.92);
+  color: var(--on-surface-variant);
+  transition: transform 250ms ease, background-color 250ms ease, color 250ms ease;
+}
+
+.upload-chip:hover,
+.upload-chip.is-active {
+  transform: translateY(-1px);
+  background: rgba(157, 200, 244, 0.18);
+  color: var(--primary);
+}
+
+.upload-chip-icon {
+  font-size: 1.1rem;
+}
+
+.link-entry-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.link-entry-input {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(182, 178, 167, 0.3);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.86);
+  color: var(--on-surface);
+  outline: none;
+}
+
+.link-entry-input:focus {
+  border-color: rgba(55, 98, 137, 0.55);
+  box-shadow: 0 0 0 3px rgba(157, 200, 244, 0.2);
+}
+
+.link-add-button {
+  padding: 0.85rem 1.1rem;
+  border-radius: 1rem;
+  background: var(--secondary);
+  color: #e8ffe7;
+  transition: transform 250ms ease, opacity 250ms ease;
+}
+
+.link-add-button:hover {
+  transform: translateY(-1px);
+  opacity: 0.95;
+}
+
+.attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-bottom: 1rem;
+}
+
+.attachment-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: 100%;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 20px rgba(52, 50, 43, 0.06);
+}
+
+.attachment-type {
+  color: var(--primary);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.attachment-label {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--on-surface);
+  font-size: 0.85rem;
+}
+
+.attachment-remove {
+  width: 1.75rem;
+  height: 1.75rem;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  color: var(--on-surface-variant);
+}
+
+.attachment-remove:hover {
+  background: rgba(248, 243, 235, 0.9);
+}
+
 .sheet-meta,
 .footer-meta {
   display: flex;
