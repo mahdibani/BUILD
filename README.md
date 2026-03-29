@@ -2,6 +2,10 @@
 
 **PowerPointLess** is an autonomous, multi-agent presentation agency powered by Google Gemini. Give it a topic, it researches, reasons, builds the slides, and stress-tests them with a mock Q&A session.
 
+## Demo
+
+<video src="https://github.com/user-attachments/assets/afc8d9df-1d33-488d-84a9-b368b3b88a67" controls width="100%"></video>
+
 ## Architecture
 
 ![Build architecture diagram](assets/build-arch.png)
