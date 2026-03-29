@@ -108,3 +108,12 @@ cd Frontend && npm install && npm run dev
 ```
 
 </details>
+
+## Built With
+
+[![Gemini](https://img.shields.io/badge/Gemini_Embedding_2-886FBF?style=for-the-badge&logo=googlegemini&logoColor=white)](https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-embedding-2/)
+[![Firecrawl](https://img.shields.io/badge/Firecrawl-E25C2F?style=for-the-badge&logoColor=white)](https://www.firecrawl.dev/)
+[![Qdrant](https://img.shields.io/badge/Qdrant-DC244C?style=for-the-badge&logo=qdrant&logoColor=white)](https://qdrant.tech/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
