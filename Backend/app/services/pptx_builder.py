@@ -55,6 +55,7 @@ class PptxDeckBuilder:
         background_path = self._select_background_path(topic)
         accent = INTENT_COLORS.get(intent, (29, 78, 216))
         context_map = {self._orb_id(item): item for item in context or []}
+        used_visual_urls: set[str] = set()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         slug = self._slugify(topic)
 
@@ -82,6 +83,7 @@ class PptxDeckBuilder:
                 accent=accent,
                 index=index,
                 context_map=context_map,
+                used_visual_urls=used_visual_urls,
             )
 
             notes_slide = notes_prs.slides.add_slide(notes_prs.slide_layouts[6])
@@ -109,25 +111,52 @@ class PptxDeckBuilder:
             background_image=background_path.name if background_path else None,
         )
 
-    def _render_main_slide(self, *, slide, slide_plan, accent: tuple[int, int, int], index: int, context_map: dict[str, RetrievalResult]) -> None:
+    def _render_main_slide(
+        self,
+        *,
+        slide,
+        slide_plan,
+        accent: tuple[int, int, int],
+        index: int,
+        context_map: dict[str, RetrievalResult],
+        used_visual_urls: set[str],
+    ) -> None:
         from pptx.dml.color import RGBColor
         from pptx.enum.shapes import MSO_SHAPE
         from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
         from pptx.util import Inches, Pt
 
+        section_chip = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(0.72),
+            Inches(0.42),
+            Inches(1.55),
+            Inches(0.38),
+        )
+        section_chip.fill.solid()
+        section_chip.fill.fore_color.rgb = RGBColor(*accent)
+        section_chip.fill.transparency = 0.08
+        section_chip.line.fill.background()
+        chip_frame = section_chip.text_frame
+        chip_run = chip_frame.paragraphs[0].add_run()
+        chip_run.text = f"SLIDE {slide_plan.slide_number:02d}"
+        chip_run.font.size = Pt(10)
+        chip_run.font.bold = True
+        chip_run.font.color.rgb = RGBColor(255, 255, 255)
+
         content_panel = slide.shapes.add_shape(
             MSO_SHAPE.ROUNDED_RECTANGLE,
             Inches(0.42),
-            Inches(0.48),
+            Inches(0.92),
             Inches(7.2),
-            Inches(5.95),
+            Inches(5.5),
         )
         content_panel.fill.solid()
         content_panel.fill.fore_color.rgb = RGBColor(255, 255, 255)
-        content_panel.fill.transparency = 0.1
+        content_panel.fill.transparency = 0.14
         content_panel.line.fill.background()
 
-        title_box = slide.shapes.add_textbox(Inches(0.75), Inches(0.7), Inches(6.4), Inches(0.9))
+        title_box = slide.shapes.add_textbox(Inches(0.75), Inches(1.1), Inches(6.4), Inches(0.9))
         title_frame = title_box.text_frame
         title_frame.word_wrap = True
         title_run = title_frame.paragraphs[0].add_run()
@@ -136,7 +165,7 @@ class PptxDeckBuilder:
         title_run.font.bold = True
         title_run.font.color.rgb = RGBColor(15, 23, 42)
 
-        objective_box = slide.shapes.add_textbox(Inches(0.76), Inches(1.32), Inches(6.3), Inches(0.48))
+        objective_box = slide.shapes.add_textbox(Inches(0.76), Inches(1.72), Inches(6.3), Inches(0.48))
         objective_frame = objective_box.text_frame
         objective_run = objective_frame.paragraphs[0].add_run()
         objective_run.text = slide_plan.objective
@@ -144,7 +173,7 @@ class PptxDeckBuilder:
         objective_run.font.bold = True
         objective_run.font.color.rgb = RGBColor(*accent)
 
-        summary_box = slide.shapes.add_textbox(Inches(0.8), Inches(1.82), Inches(6.05), Inches(1.6))
+        summary_box = slide.shapes.add_textbox(Inches(0.8), Inches(2.2), Inches(6.0), Inches(1.42))
         summary_frame = summary_box.text_frame
         summary_frame.word_wrap = True
         summary_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -153,7 +182,7 @@ class PptxDeckBuilder:
         summary_run.font.size = Pt(14)
         summary_run.font.color.rgb = RGBColor(51, 65, 85)
 
-        bullet_box = slide.shapes.add_textbox(Inches(0.86), Inches(3.22), Inches(5.95), Inches(2.65))
+        bullet_box = slide.shapes.add_textbox(Inches(0.86), Inches(3.75), Inches(5.95), Inches(2.15))
         bullet_frame = bullet_box.text_frame
         bullet_frame.word_wrap = True
         bullet_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -170,9 +199,27 @@ class PptxDeckBuilder:
             slide_plan=slide_plan,
             context_map=context_map,
             accent=accent,
+            used_visual_urls=used_visual_urls,
         )
         if not image_placed:
             self._render_visual_brief(slide=slide, slide_plan=slide_plan, accent=accent)
+
+        evidence_panel = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(7.78),
+            Inches(6.15),
+            Inches(4.86),
+            Inches(0.5),
+        )
+        evidence_panel.fill.solid()
+        evidence_panel.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        evidence_panel.fill.transparency = 0.12
+        evidence_panel.line.fill.background()
+        evidence_frame = evidence_panel.text_frame
+        evidence_run = evidence_frame.paragraphs[0].add_run()
+        evidence_run.text = "Evidence: " + (", ".join(slide_plan.evidence_orbs[:3]) if slide_plan.evidence_orbs else "reasoned synthesis")
+        evidence_run.font.size = Pt(10)
+        evidence_run.font.color.rgb = RGBColor(31, 41, 55)
 
         footer_box = slide.shapes.add_textbox(Inches(0.7), Inches(6.74), Inches(12.0), Inches(0.34))
         footer_frame = footer_box.text_frame
@@ -191,6 +238,24 @@ class PptxDeckBuilder:
         from pptx.enum.text import MSO_AUTO_SIZE
         from pptx.util import Inches, Pt
 
+        eyebrow = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(0.72),
+            Inches(0.42),
+            Inches(2.1),
+            Inches(0.38),
+        )
+        eyebrow.fill.solid()
+        eyebrow.fill.fore_color.rgb = RGBColor(*accent)
+        eyebrow.fill.transparency = 0.08
+        eyebrow.line.fill.background()
+        eyebrow_frame = eyebrow.text_frame
+        eyebrow_run = eyebrow_frame.paragraphs[0].add_run()
+        eyebrow_run.text = "SPEAKER NOTES"
+        eyebrow_run.font.size = Pt(10)
+        eyebrow_run.font.bold = True
+        eyebrow_run.font.color.rgb = RGBColor(255, 255, 255)
+
         title_box = slide.shapes.add_textbox(Inches(0.72), Inches(0.65), Inches(11.6), Inches(0.9))
         title_frame = title_box.text_frame
         title_frame.word_wrap = True
@@ -203,16 +268,16 @@ class PptxDeckBuilder:
         note_panel = slide.shapes.add_shape(
             MSO_SHAPE.ROUNDED_RECTANGLE,
             Inches(0.65),
-            Inches(1.5),
+            Inches(1.42),
             Inches(12.0),
-            Inches(4.6),
+            Inches(4.95),
         )
         note_panel.fill.solid()
         note_panel.fill.fore_color.rgb = RGBColor(255, 255, 255)
         note_panel.fill.transparency = 0.12
         note_panel.line.fill.background()
 
-        summary_box = slide.shapes.add_textbox(Inches(0.95), Inches(1.8), Inches(10.8), Inches(1.15))
+        summary_box = slide.shapes.add_textbox(Inches(0.95), Inches(1.82), Inches(10.8), Inches(1.2))
         summary_frame = summary_box.text_frame
         summary_frame.word_wrap = True
         summary_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -226,7 +291,7 @@ class PptxDeckBuilder:
         summary_body.font.size = Pt(16)
         summary_body.font.color.rgb = RGBColor(31, 41, 55)
 
-        notes_box = slide.shapes.add_textbox(Inches(0.95), Inches(3.0), Inches(10.8), Inches(1.85))
+        notes_box = slide.shapes.add_textbox(Inches(0.95), Inches(3.08), Inches(10.8), Inches(2.2))
         notes_frame = notes_box.text_frame
         notes_frame.word_wrap = True
         notes_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
@@ -240,12 +305,41 @@ class PptxDeckBuilder:
         notes_body.font.size = Pt(16)
         notes_body.font.color.rgb = RGBColor(31, 41, 55)
 
-        orb_box = slide.shapes.add_textbox(Inches(0.95), Inches(5.05), Inches(10.8), Inches(0.7))
+        orb_box = slide.shapes.add_textbox(Inches(0.95), Inches(5.45), Inches(10.8), Inches(0.7))
         orb_frame = orb_box.text_frame
         orb_run = orb_frame.paragraphs[0].add_run()
         orb_run.text = "Evidence orbs: " + (", ".join(slide_plan.evidence_orbs) if slide_plan.evidence_orbs else "reasoned synthesis")
         orb_run.font.size = Pt(12)
         orb_run.font.color.rgb = RGBColor(51, 65, 85)
+
+        cue_panel = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(9.45),
+            Inches(1.9),
+            Inches(2.7),
+            Inches(3.05),
+        )
+        cue_panel.fill.solid()
+        cue_panel.fill.fore_color.rgb = RGBColor(*accent)
+        cue_panel.fill.transparency = 0.16
+        cue_panel.line.fill.background()
+        cue_frame = cue_panel.text_frame
+        cue_frame.word_wrap = True
+        cue_title = cue_frame.paragraphs[0].add_run()
+        cue_title.text = "Delivery cues"
+        cue_title.font.size = Pt(13)
+        cue_title.font.bold = True
+        cue_title.font.color.rgb = RGBColor(255, 255, 255)
+        for cue in (
+            "Open with the stake, not the detail.",
+            "Land one proof point before expanding.",
+            "Pause before the final takeaway.",
+        ):
+            cue_paragraph = cue_frame.add_paragraph()
+            cue_paragraph.text = cue
+            cue_paragraph.font.size = Pt(11.5)
+            cue_paragraph.font.color.rgb = RGBColor(255, 255, 255)
+            cue_paragraph.space_after = Pt(8)
 
     def _paint_background(
         self,
@@ -326,12 +420,32 @@ class PptxDeckBuilder:
         visual_body.font.size = Pt(14)
         visual_body.font.color.rgb = RGBColor(51, 65, 85)
 
-    def _place_visual_asset(self, *, slide, slide_plan, context_map: dict[str, RetrievalResult], accent: tuple[int, int, int]) -> bool:
+    def _place_visual_asset(
+        self,
+        *,
+        slide,
+        slide_plan,
+        context_map: dict[str, RetrievalResult],
+        accent: tuple[int, int, int],
+        used_visual_urls: set[str],
+    ) -> bool:
         from pptx.dml.color import RGBColor
         from pptx.enum.shapes import MSO_SHAPE
         from pptx.util import Inches, Pt
 
-        image_urls = self._select_image_urls(slide_plan.evidence_orbs, context_map, limit=2)
+        image_urls = self._select_image_urls(
+            slide_plan.evidence_orbs,
+            context_map,
+            limit=2,
+            excluded_urls=used_visual_urls,
+        )
+        if not image_urls:
+            image_urls = self._select_image_urls(
+                slide_plan.evidence_orbs,
+                context_map,
+                limit=1,
+                excluded_urls=set(),
+            )
         if not image_urls:
             return False
 
@@ -343,6 +457,8 @@ class PptxDeckBuilder:
 
         if not image_blobs:
             return False
+
+        used_visual_urls.update(image_urls[: len(image_blobs)])
 
         if len(image_blobs) == 1:
             slide.shapes.add_picture(BytesIO(image_blobs[0]), Inches(7.75), Inches(1.2), width=Inches(4.95), height=Inches(4.95))
@@ -375,6 +491,7 @@ class PptxDeckBuilder:
         context_map: dict[str, RetrievalResult],
         *,
         limit: int,
+        excluded_urls: set[str],
     ) -> list[str]:
         selected: list[str] = []
         seen: set[str] = set()
@@ -384,7 +501,7 @@ class PptxDeckBuilder:
             if not item:
                 continue
             for candidate in self._candidate_image_urls(item):
-                if candidate not in seen:
+                if candidate not in seen and candidate not in excluded_urls:
                     selected.append(candidate)
                     seen.add(candidate)
                 if len(selected) >= limit:
@@ -392,7 +509,7 @@ class PptxDeckBuilder:
 
         for item in context_map.values():
             for candidate in self._candidate_image_urls(item):
-                if candidate not in seen:
+                if candidate not in seen and candidate not in excluded_urls:
                     selected.append(candidate)
                     seen.add(candidate)
                 if len(selected) >= limit:
@@ -427,6 +544,9 @@ class PptxDeckBuilder:
     def _select_background_path(self, topic: str) -> Path | None:
         if not self.backgrounds_dir or not self.backgrounds_dir.exists():
             return None
+        preferred_background = self.backgrounds_dir / "2a1de542-04c7-45ed-bd9b-f68586de0987.jpeg"
+        if preferred_background.exists():
+            return preferred_background
         candidates = sorted(
             path
             for path in self.backgrounds_dir.iterdir()
