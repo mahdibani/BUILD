@@ -6,6 +6,7 @@ import PageTransition from "../components/PageTransition";
 import { art, councilAgents, pitchCards } from "../data/content";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+const PRESENTATION_STORAGE_KEY = "build:last-presentation";
 
 const stagePositions = {
   kaito: "member-kaito",
@@ -104,6 +105,7 @@ export default function WorkshopPage() {
     }
 
     const generated = await generationResponse.json();
+    window.sessionStorage.setItem(PRESENTATION_STORAGE_KEY, JSON.stringify(generated));
     setGenerationResult(generated);
     setShowToast(true);
     window.setTimeout(() => setShowToast(false), 2600);
@@ -292,6 +294,13 @@ export default function WorkshopPage() {
                       {generationResult.challenger.length} challenger questions.
                     </span>
                     <div className="submission-link-row">
+                      <button
+                        className="submission-link submission-link-button"
+                        type="button"
+                        onClick={() => navigate("/presentation", { state: { generationResult } })}
+                      >
+                        Open React deck
+                      </button>
                       <a
                         className="submission-link"
                         href={`${API_BASE_URL}${generationResult.download_url}`}
@@ -427,6 +436,14 @@ export default function WorkshopPage() {
                       <p>{generationResult.deck.deck_subtitle}</p>
                     </div>
                     <div className="deck-download-actions">
+                      <button
+                        className="deck-download-button is-primary"
+                        type="button"
+                        onClick={() => navigate("/presentation", { state: { generationResult } })}
+                      >
+                        <MaterialIcon name="slideshow" />
+                        <span>React deck</span>
+                      </button>
                       <a
                         className="deck-download-button"
                         href={`${API_BASE_URL}${generationResult.download_url}`}
