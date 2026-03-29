@@ -1,12 +1,12 @@
 # PowerPointLess
 
-**PowerPointLess** is an autonomous, multi-agent presentation agency powered by Google Gemini. Give it a topic — it researches, reasons, builds the slides, and stress-tests them with a mock Q&A session.
+**PowerPointLess** is an autonomous, multi-agent presentation agency powered by Google Gemini. Give it a topic, it researches, reasons, builds the slides, and stress-tests them with a mock Q&A session.
 
 ## Architecture
 
 ![Build architecture diagram](assets/build-arch.png)
 
-The pipeline runs through four phases: **intent classification** → **multimodal research & ingestion** → **specialist agent reasoning** → **deck production + challenger Q&A**. Each phase is handled by a dedicated agent — The Scout, The Architect/Strategist/Scholar/Storyteller, The Producer, and The Challenger.
+The pipeline runs through four phases: **intent classification** → **multimodal research & ingestion** → **specialist agent reasoning** → **deck production + challenger Q&A**. Each phase is handled by a dedicated agent : The Scout, The Architect/Strategist/Scholar/Storyteller, The Producer, and The Challenger.
 
 ## Agent Roster
 
@@ -15,10 +15,10 @@ The pipeline runs through four phases: **intent classification** → **multimoda
 | **Gemini Classifier** | Routes topic to `technical / business / academic / creative` |
 | **The Scout** | Firecrawl-powered web research across 5 auto-generated queries |
 | **Sensory Service** | Ingests PDFs, images, audio, video, YouTube, and web URLs |
-| **The Architect** | Technical specialist — systems, tradeoffs, specs |
-| **The Strategist** | Business specialist — market, ROI, executive framing |
-| **The Scholar** | Academic specialist — rigor, citations, methodology |
-| **The Storyteller** | Creative specialist — narrative, emotion, visual impact |
+| **The Architect** | Technical specialist : systems, tradeoffs, specs |
+| **The Strategist** | Business specialist : market, ROI, executive framing |
+| **The Scholar** | Academic specialist : rigor, citations, methodology |
+| **The Storyteller** | Creative specialist : narrative, emotion, visual impact |
 | **The Producer** | Builds the 8-slide deck blueprint from the specialist brief |
 | **The Challenger** | Generates 6 ranked mock Q&A questions from knowledge gaps |
 | **PPTX Builder** | Renders main deck + speaker notes deck as `.pptx` files |
