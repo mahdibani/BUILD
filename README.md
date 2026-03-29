@@ -1,6 +1,6 @@
-# Build
+# PowerPointLess
 
-**Build** is an autonomous, multi-agent presentation agency powered by Google Gemini. Give it a topic — it researches, reasons, builds the slides, and stress-tests them with a mock Q&A session.
+**PowerPointLess** is an autonomous, multi-agent presentation agency powered by Google Gemini. Give it a topic — it researches, reasons, builds the slides, and stress-tests them with a mock Q&A session.
 
 ## Architecture
 
