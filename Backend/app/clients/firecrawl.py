@@ -119,10 +119,7 @@ class FirecrawlClient:
             "/v1/scrape",
             {
                 "url": normalized_url,
-                "formats": ["markdown", "summary"],
-                "onlyMainContent": False,
-                "maxAge": 172800000,
-                "parsers": ["pdf"],
+                "formats": ["markdown"],
             },
         )
         return data.get("data", data)
