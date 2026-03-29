@@ -130,7 +130,9 @@ class PresentationAgentService:
             f"Intent: {intent}\n"
             f"Specialist brief:\n{brief.model_dump_json(indent=2)}\n\n"
             f"Memory orbs:\n{self._format_context(context)}\n\n"
-            "Create 8 slides. Include evidence_orbs using the ORB ids whenever a slide is supported by source material."
+            "Create 8 slides. Keep titles sharp, objectives to one sentence, key points short, "
+            "and speaker notes to at most two compact sentences. "
+            "Include evidence_orbs using the ORB ids whenever a slide is supported by source material."
         )
         schema = {
             "type": "object",
@@ -204,7 +206,7 @@ class PresentationAgentService:
         data = await self.gemini_client.generate_structured_json(
             prompt=prompt,
             schema=schema,
-            max_tokens=2200,
+            max_tokens=3200,
         )
         return DeckBlueprint.model_validate(data)
 

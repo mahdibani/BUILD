@@ -68,7 +68,23 @@ class GeminiClient:
             max_tokens=max_tokens,
             temperature=temperature,
         )
-        return json.loads(text)
+        try:
+            return json.loads(text)
+        except json.JSONDecodeError:
+            repair_prompt = (
+                f"{prompt}\n\n"
+                "The previous attempt was invalid or truncated JSON. "
+                "Return only one valid JSON object that matches the schema exactly. "
+                "Keep string fields concise. Do not include markdown fences, commentary, or trailing text."
+            )
+            repaired_text = await self.generate_structured_text(
+                prompt=repair_prompt,
+                schema=schema,
+                model=model,
+                max_tokens=(max_tokens + 800) if max_tokens is not None else None,
+                temperature=0.1,
+            )
+            return json.loads(repaired_text)
 
     async def generate_structured_text(
         self,
