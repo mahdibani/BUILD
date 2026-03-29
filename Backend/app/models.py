@@ -23,10 +23,18 @@ class ContentChunk(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     topic: str
     intent: Literal["technical", "business", "academic", "creative"]
+    embedding_parts: list[dict[str, Any]] | None = None
 
     @property
     def contextualized_content(self) -> str:
         return f"[Intent: {self.intent}] [Topic: {self.topic}] {self.content}"
+
+    @property
+    def embedding_content(self) -> dict[str, Any]:
+        parts: list[dict[str, Any]] = [{"text": self.contextualized_content}]
+        if self.embedding_parts:
+            parts.extend(self.embedding_parts)
+        return {"parts": parts}
 
 
 class RetrievalResult(BaseModel):

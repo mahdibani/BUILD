@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import mimetypes
 from pathlib import Path
@@ -13,7 +14,7 @@ from app.clients.firecrawl import FirecrawlClient
 from app.clients.gemini import GeminiClient
 from app.config import Settings
 from app.models import ContentChunk, IntentResponse
-from app.services.chunking import chunk_pdf_bytes, chunk_text, extract_youtube_video_id
+from app.services.chunking import chunk_pdf_documents, chunk_text, extract_youtube_video_id
 
 
 class SensoryService:
@@ -66,16 +67,19 @@ class SensoryService:
         suffix = Path(filename).suffix.lower()
 
         if suffix == ".pdf" or content_type == "application/pdf":
-            pdf_chunks = chunk_pdf_bytes(file_bytes, self.settings.pdf_pages_per_chunk)
+            pdf_chunks = chunk_pdf_documents(file_bytes, self.settings.pdf_pages_per_chunk)
             return [
                 ContentChunk(
                     content=text,
                     source="user_upload",
                     topic=topic,
                     intent=intent.intent,
+                    embedding_parts=[self._build_inline_part(file_bytes=pdf_bytes, mime_type="application/pdf")]
+                    if len(pdf_bytes) <= self.settings.inline_media_limit_bytes
+                    else None,
                     metadata={"filename": filename, "content_type": content_type, **meta},
                 )
-                for text, meta in pdf_chunks
+                for pdf_bytes, text, meta in pdf_chunks
             ]
 
         if content_type.startswith("text/") or suffix in {".md", ".txt", ".csv", ".json"}:
@@ -101,38 +105,46 @@ class SensoryService:
             ]
 
         if content_type.startswith("image/"):
+            media_description = await self._describe_media(
+                topic=topic,
+                intent=intent.intent,
+                file_bytes=file_bytes,
+                mime_type=content_type,
+                file_name=filename,
+                media_kind="image",
+            )
             return [
                 ContentChunk(
-                    content=await self._describe_media(
-                        topic=topic,
-                        intent=intent.intent,
-                        file_bytes=file_bytes,
-                        mime_type=content_type,
-                        file_name=filename,
-                        media_kind="image",
-                    ),
+                    content=media_description,
                     source="user_upload",
                     topic=topic,
                     intent=intent.intent,
+                    embedding_parts=[self._build_inline_part(file_bytes=file_bytes, mime_type=content_type)]
+                    if len(file_bytes) <= self.settings.inline_media_limit_bytes
+                    else None,
                     metadata={"filename": filename, "content_type": content_type},
                 )
             ]
 
         if content_type.startswith("audio/") or content_type.startswith("video/"):
             media_kind = "audio" if content_type.startswith("audio/") else "video"
+            media_description = await self._describe_media(
+                topic=topic,
+                intent=intent.intent,
+                file_bytes=file_bytes,
+                mime_type=content_type,
+                file_name=filename,
+                media_kind=media_kind,
+            )
             return [
                 ContentChunk(
-                    content=await self._describe_media(
-                        topic=topic,
-                        intent=intent.intent,
-                        file_bytes=file_bytes,
-                        mime_type=content_type,
-                        file_name=filename,
-                        media_kind=media_kind,
-                    ),
+                    content=media_description,
                     source="user_upload",
                     topic=topic,
                     intent=intent.intent,
+                    embedding_parts=[self._build_inline_part(file_bytes=file_bytes, mime_type=content_type)]
+                    if len(file_bytes) <= self.settings.inline_media_limit_bytes
+                    else None,
                     metadata={
                         "filename": filename,
                         "content_type": content_type,
@@ -234,6 +246,15 @@ class SensoryService:
             file_bytes=file_bytes,
             mime_type=mime_type,
         )
+
+    @staticmethod
+    def _build_inline_part(*, file_bytes: bytes, mime_type: str) -> dict[str, dict[str, str]]:
+        return {
+            "inline_data": {
+                "mime_type": mime_type,
+                "data": base64.b64encode(file_bytes).decode("utf-8"),
+            }
+        }
 
     @staticmethod
     def _fetch_youtube_transcript(video_id: str) -> str:

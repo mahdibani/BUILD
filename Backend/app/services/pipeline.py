@@ -63,7 +63,7 @@ class PresentationPipeline:
             )
 
         vectors = await asyncio.gather(
-            *(self.gemini_client.embed_text(chunk.contextualized_content) for chunk in chunks)
+            *(self.gemini_client.embed_chunk(chunk) for chunk in chunks)
         )
         stored_points = self.qdrant_store.upsert_chunks(chunks, list(vectors))
 

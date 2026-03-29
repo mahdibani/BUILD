@@ -3,12 +3,13 @@ from __future__ import annotations
 import base64
 import json
 import mimetypes
+from math import sqrt
 from typing import Any
 
 import httpx
 
 from app.config import Settings
-from app.models import IntentResponse
+from app.models import ContentChunk, IntentResponse
 
 
 class GeminiClient:
@@ -76,6 +77,19 @@ class GeminiClient:
         return IntentResponse.model_validate(json.loads(text))
 
     async def embed_text(self, text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> list[float]:
+        if self.settings.uses_multimodal_gemini_embeddings:
+            payload = {
+                "model": f"models/{self.settings.gemini_embedding_model}",
+                "content": {"parts": [{"text": text}]},
+                "outputDimensionality": self.settings.gemini_embedding_dimension,
+                "taskType": task_type,
+            }
+            data = await self._post_json(
+                f"/v1beta/models/{self.settings.gemini_embedding_model}:embedContent",
+                payload,
+            )
+            return self._normalize_vector(data["embedding"]["values"])
+
         if self.settings.uses_openrouter:
             data = await self._openrouter_post_json(
                 "/embeddings",
@@ -96,6 +110,25 @@ class GeminiClient:
             payload,
         )
         return data["embedding"]["values"]
+
+    async def embed_chunk(self, chunk: ContentChunk) -> list[float]:
+        if self.settings.uses_openrouter:
+            return await self.embed_text(chunk.contextualized_content)
+
+        if self.settings.uses_multimodal_gemini_embeddings:
+            payload = {
+                "model": f"models/{self.settings.gemini_embedding_model}",
+                "content": chunk.embedding_content,
+                "outputDimensionality": self.settings.gemini_embedding_dimension,
+                "taskType": "RETRIEVAL_DOCUMENT",
+            }
+            data = await self._post_json(
+                f"/v1beta/models/{self.settings.gemini_embedding_model}:embedContent",
+                payload,
+            )
+            return self._normalize_vector(data["embedding"]["values"])
+
+        return await self.embed_text(chunk.contextualized_content)
 
     async def describe_inline_media(
         self,
@@ -234,3 +267,10 @@ class GeminiClient:
         if mime_type.startswith("video/"):
             return {"type": "video_url", "video_url": {"url": f"data:{mime_type};base64,{encoded}"}}
         raise RuntimeError(f"Unsupported OpenRouter media type: {mime_type}")
+
+    @staticmethod
+    def _normalize_vector(vector: list[float]) -> list[float]:
+        magnitude = sqrt(sum(value * value for value in vector))
+        if not magnitude:
+            return vector
+        return [value / magnitude for value in vector]

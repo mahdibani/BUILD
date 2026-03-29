@@ -23,10 +23,10 @@ class Settings(BaseSettings):
     qdrant_api_key: str | None = Field(default=None)
     qdrant_collection: str = Field(default="presentation_memory")
 
-    gemini_classifier_model: str = Field(default="gemini-2.0-flash")
-    gemini_generation_model: str = Field(default="gemini-2.0-flash")
-    gemini_embedding_model: str = Field(default="text-embedding-004")
-    gemini_embedding_dimension: int = Field(default=768)
+    gemini_classifier_model: str = Field(default="gemini-2.5-flash-lite")
+    gemini_generation_model: str = Field(default="gemini-2.5-flash-lite")
+    gemini_embedding_model: str = Field(default="gemini-embedding-2-preview")
+    gemini_embedding_dimension: int = Field(default=1536)
     classifier_max_tokens: int = Field(default=400)
     generation_max_tokens: int = Field(default=1200)
 
@@ -70,6 +70,10 @@ class Settings(BaseSettings):
             "video",
         )
         return any(marker in model for marker in multimodal_markers)
+
+    @property
+    def uses_multimodal_gemini_embeddings(self) -> bool:
+        return not self.uses_openrouter and self.gemini_embedding_model.startswith("gemini-embedding-2")
 
     @model_validator(mode="after")
     def normalize_openrouter_settings(self) -> "Settings":
