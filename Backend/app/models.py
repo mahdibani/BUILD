@@ -121,6 +121,12 @@ class GeneratePresentationRequest(BaseModel):
     auto_research: bool = True
 
 
+class AgentTraceStep(BaseModel):
+    agent: str
+    stage: str
+    summary: str
+
+
 class GeneratedPresentationResponse(BaseModel):
     topic: str
     intent: Literal["technical", "business", "academic", "creative"]
@@ -128,6 +134,7 @@ class GeneratedPresentationResponse(BaseModel):
     deck: DeckBlueprint
     challenger: list[ChallengerQuestion] = Field(default_factory=list)
     source_context: list[RetrievalResult]
+    agent_trace: list[AgentTraceStep] = Field(default_factory=list)
     auto_researched: bool = False
     pptx_path: str | None = None
     download_url: str | None = None

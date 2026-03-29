@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
 from math import sqrt
@@ -81,7 +82,11 @@ class GeminiClient:
                 prompt=repair_prompt,
                 schema=schema,
                 model=model,
-                max_tokens=(max_tokens + 800) if max_tokens is not None else None,
+                max_tokens=(
+                    max_tokens + self.settings.structured_repair_token_buffer
+                    if max_tokens is not None
+                    else None
+                ),
                 temperature=0.1,
             )
             return json.loads(repaired_text)
@@ -180,14 +185,21 @@ class GeminiClient:
         }
 
         async with httpx.AsyncClient(base_url=self.base_url, timeout=60.0) as client:
-            response = await client.post(path, headers=headers, json=payload)
-            try:
-                response.raise_for_status()
-            except httpx.HTTPStatusError as exc:
-                raise RuntimeError(
-                    f"Gemini API request failed with status {response.status_code}: {response.text}"
-                ) from exc
-            return response.json()
+            max_attempts = 4
+            for attempt in range(1, max_attempts + 1):
+                response = await client.post(path, headers=headers, json=payload)
+                try:
+                    response.raise_for_status()
+                    return response.json()
+                except httpx.HTTPStatusError as exc:
+                    if attempt < max_attempts and self._should_retry(response.status_code):
+                        retry_after = self._retry_after_seconds(response)
+                        delay = retry_after if retry_after is not None else float(2 ** (attempt - 1))
+                        await asyncio.sleep(delay)
+                        continue
+                    raise RuntimeError(
+                        f"Gemini API request failed with status {response.status_code}: {response.text}"
+                    ) from exc
 
     @staticmethod
     def _extract_text(data: dict[str, Any]) -> str:
@@ -215,3 +227,17 @@ class GeminiClient:
         if not magnitude:
             return vector
         return [v / magnitude for v in vector]
+
+    @staticmethod
+    def _should_retry(status_code: int) -> bool:
+        return status_code in {429, 500, 502, 503, 504}
+
+    @staticmethod
+    def _retry_after_seconds(response: httpx.Response) -> float | None:
+        raw_value = response.headers.get("retry-after")
+        if not raw_value:
+            return None
+        try:
+            return float(raw_value)
+        except ValueError:
+            return None

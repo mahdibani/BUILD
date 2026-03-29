@@ -88,13 +88,15 @@ class QdrantStore:
                 )
             )
 
-        results = self.client.search(
+        response = self.client.query_points(
             collection_name=self.settings.qdrant_collection,
-            query_vector=vector,
+            query=vector,
             query_filter=qdrant_models.Filter(must=must_conditions),
             limit=limit,
             with_payload=True,
+            with_vectors=False,
         )
+        results = response.points
 
         return [
             RetrievalResult(

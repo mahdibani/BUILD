@@ -84,6 +84,31 @@ export default function WorkshopPage() {
     setAttachments((current) => current.filter((item) => item.id !== id));
   };
 
+  const requestGeneration = async ({ intent = null }) => {
+    const generationResponse = await fetch(`${API_BASE_URL}/api/presentations/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        topic: idea.trim(),
+        intent,
+        include_challenger: true,
+        auto_research: false,
+      }),
+    });
+
+    if (!generationResponse.ok) {
+      const details = await generationResponse.text();
+      throw new Error(details || "The presentation generation step failed.");
+    }
+
+    const generated = await generationResponse.json();
+    setGenerationResult(generated);
+    setShowToast(true);
+    window.setTimeout(() => setShowToast(false), 2600);
+  };
+
   const handleSend = async () => {
     if (!idea.trim()) {
       setSubmitError("Add a topic before sending the pitch to the backend.");
@@ -120,31 +145,28 @@ export default function WorkshopPage() {
 
       const intake = await response.json();
       setIntakeResult(intake);
-
-      const generationResponse = await fetch(`${API_BASE_URL}/api/presentations/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          topic: idea.trim(),
-          intent: intake.intent.intent,
-          include_challenger: true,
-          auto_research: false,
-        }),
-      });
-
-      if (!generationResponse.ok) {
-        const details = await generationResponse.text();
-        throw new Error(details || "The presentation generation step failed.");
-      }
-
-      const generated = await generationResponse.json();
-      setGenerationResult(generated);
-      setShowToast(true);
-      window.setTimeout(() => setShowToast(false), 2600);
+      await requestGeneration({ intent: intake.intent.intent });
     } catch (error) {
       setSubmitError(error.message || "Something went wrong while calling the backend.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGenerateOnly = async () => {
+    if (!idea.trim()) {
+      setSubmitError("Add a topic before generating from stored memory.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError("");
+    setGenerationResult(null);
+
+    try {
+      await requestGeneration({ intent: intakeResult?.intent?.intent ?? null });
+    } catch (error) {
+      setSubmitError(error.message || "Something went wrong while generating from stored memory.");
     } finally {
       setIsSubmitting(false);
     }
@@ -279,12 +301,27 @@ export default function WorkshopPage() {
                     </a>
                   </div>
                 ) : null}
+                {!generationResult && attachments.length ? (
+                  <div className="submission-banner is-memory-note">
+                    <strong>Generate Only skips fresh uploads.</strong>
+                    <span>Use it when the topic is already in Qdrant and you just want to build the deck.</span>
+                  </div>
+                ) : null}
                 <div className="sheet-meta">
                   <div className="draft-meta">
                     <span className="dot" />
                     <span>Draft No. 427</span>
                   </div>
                   <div className="sheet-actions">
+                    <button
+                      className="generate-memory-button"
+                      type="button"
+                      onClick={handleGenerateOnly}
+                      disabled={isSubmitting}
+                    >
+                      <MaterialIcon name="auto_awesome" />
+                      <span>Generate Only</span>
+                    </button>
                     <button className="icon-button" type="button" aria-label="Edit draft">
                       <MaterialIcon name="stylus" />
                     </button>
@@ -393,6 +430,15 @@ export default function WorkshopPage() {
                     <span>{generationResult.deck.slides.length} slides</span>
                     <span>{generationResult.challenger.length} Q&A prompts</span>
                   </div>
+                  {generationResult.agent_trace?.length ? (
+                    <div className="deck-preview-footer">
+                      {generationResult.agent_trace.map((step, index) => (
+                        <span key={`${step.agent}-${step.stage}-${index}`}>
+                          {index + 1}. {step.agent}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
 
                   <div className="deck-preview-list">
                     {generationResult.deck.slides.slice(0, 4).map((slide) => (

@@ -4,6 +4,7 @@ from textwrap import shorten
 from typing import Any
 
 from app.clients.gemini import GeminiClient
+from app.config import Settings
 from app.models import (
     ChallengerQuestion,
     DeckBlueprint,
@@ -37,8 +38,9 @@ INTENT_PROFILES: dict[str, dict[str, str]] = {
 
 
 class PresentationAgentService:
-    def __init__(self, gemini_client: GeminiClient) -> None:
+    def __init__(self, gemini_client: GeminiClient, settings: Settings) -> None:
         self.gemini_client = gemini_client
+        self.settings = settings
 
     def build_retrieval_query(self, *, topic: str, intent: str) -> str:
         profile = INTENT_PROFILES[intent]
@@ -61,8 +63,9 @@ class PresentationAgentService:
             f"Topic: {topic}\n"
             f"Intent: {intent}\n\n"
             "Create a strategic presentation brief using only the supplied memory orbs. "
-            "Ignore weak or noisy source fragments when better evidence exists.\n\n"
-            f"Memory orbs:\n{self._format_context(context)}"
+            "Ignore weak or noisy source fragments when better evidence exists. "
+            "Be concise and concrete.\n\n"
+            f"Memory orbs:\n{self._format_context(context, max_items=6, max_chars=420)}"
         )
         schema = {
             "type": "object",
@@ -75,23 +78,24 @@ class PresentationAgentService:
                     "type": "array",
                     "items": {"type": "string"},
                     "minItems": 3,
-                    "maxItems": 6,
+                    "maxItems": 4,
                 },
                 "evidence_priorities": {
                     "type": "array",
                     "items": {"type": "string"},
                     "minItems": 3,
-                    "maxItems": 6,
+                    "maxItems": 4,
                 },
                 "slide_strategy": {
                     "type": "array",
                     "items": {"type": "string"},
                     "minItems": 3,
-                    "maxItems": 6,
+                    "maxItems": 4,
                 },
                 "risks_and_gaps": {
                     "type": "array",
                     "items": {"type": "string"},
+                    "maxItems": 4,
                 },
                 "recommended_tone": {"type": "string"},
             },
@@ -110,7 +114,7 @@ class PresentationAgentService:
         data = await self.gemini_client.generate_structured_json(
             prompt=prompt,
             schema=schema,
-            max_tokens=1200,
+            max_tokens=self.settings.specialist_max_tokens,
         )
         return SpecialistBrief.model_validate(data)
 
@@ -129,7 +133,7 @@ class PresentationAgentService:
             f"Topic: {topic}\n"
             f"Intent: {intent}\n"
             f"Specialist brief:\n{brief.model_dump_json(indent=2)}\n\n"
-            f"Memory orbs:\n{self._format_context(context)}\n\n"
+            f"Memory orbs:\n{self._format_context(context, max_items=8, max_chars=620)}\n\n"
             "Create 8 slides. Keep titles sharp and objectives to one sentence, but make the slide body richer. "
             "Each slide needs a summary_paragraph of 2 to 4 sentences that explains the point in human language. "
             "Key points should be concrete and informative, not fragments. "
@@ -210,7 +214,7 @@ class PresentationAgentService:
         data = await self.gemini_client.generate_structured_json(
             prompt=prompt,
             schema=schema,
-            max_tokens=3800,
+            max_tokens=self.settings.deck_blueprint_max_tokens,
         )
         return DeckBlueprint.model_validate(data)
 
@@ -228,7 +232,7 @@ class PresentationAgentService:
             f"Topic: {topic}\n"
             f"Intent: {intent}\n"
             f"Deck blueprint:\n{deck.model_dump_json(indent=2)}\n\n"
-            f"Memory orbs:\n{self._format_context(context)}\n\n"
+            f"Memory orbs:\n{self._format_context(context, max_items=8, max_chars=480)}\n\n"
             "Return 6 questions ranked by practical importance. Reuse ORB ids in evidence_orbs when possible."
         )
         schema = {
@@ -268,18 +272,24 @@ class PresentationAgentService:
         data = await self.gemini_client.generate_structured_json(
             prompt=prompt,
             schema=schema,
-            max_tokens=1800,
+            max_tokens=self.settings.challenger_max_tokens,
         )
         return [ChallengerQuestion.model_validate(item) for item in data["questions"]]
 
-    def _format_context(self, context: list[RetrievalResult]) -> str:
+    def _format_context(
+        self,
+        context: list[RetrievalResult],
+        *,
+        max_items: int = 8,
+        max_chars: int = 700,
+    ) -> str:
         filtered = [item for item in context if not self._is_low_signal(item)]
-        chosen = filtered or context
+        chosen = (filtered or context)[:max_items]
         formatted = []
         for item in chosen:
             orb_id = self._orb_id(item)
             source_label = item.metadata.get("url") or item.source
-            excerpt = shorten(" ".join(item.content.split()), width=1000, placeholder="...")
+            excerpt = shorten(" ".join(item.content.split()), width=max_chars, placeholder="...")
             formatted.append(
                 f"{orb_id}\n"
                 f"source={item.source}\n"
