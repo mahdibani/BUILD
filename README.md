@@ -1,4 +1,4 @@
-# Build
+# PowerPointLess
 
 Build-Slides is an autonomous, multi-agent presentation agency. It does more than turn text into slides. It researches, reasons, designs, and stress-tests a presentation based on your specific intent.
 
