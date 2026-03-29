@@ -221,14 +221,6 @@ class SensoryService:
         file_name: str,
         media_kind: str,
     ) -> str:
-        if self.settings.uses_openrouter and not self.settings.openrouter_generation_supports_multimodal:
-            return (
-                f"Uploaded {media_kind} asset '{file_name}' was received for the topic '{topic}'. "
-                f"The current OpenRouter model is being used in text-only mode for the '{intent}' intent, "
-                "so this media could not be deeply analyzed. Store or review this asset separately, "
-                "or switch to a multimodal-capable model for image/audio/video understanding."
-            )
-
         if len(file_bytes) > self.settings.inline_media_limit_bytes:
             return (
                 f"{media_kind.title()} upload '{file_name}' exceeded the inline Gemini processing limit. "
