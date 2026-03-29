@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from textwrap import shorten
 from typing import Any
 
@@ -64,7 +65,8 @@ class PresentationAgentService:
             f"Topic: {topic}\n"
             f"Intent: {intent}\n\n"
             "Create a strategic presentation brief using only the supplied evidence digest. "
-            "Be concise, concrete, and decision-useful.\n\n"
+            "Be concise, concrete, and decision-useful. "
+            "Keep every string short and avoid long explanations.\n\n"
             f"Evidence digest:\n{evidence_digest}"
         )
         schema = {
@@ -111,11 +113,19 @@ class PresentationAgentService:
                 "recommended_tone",
             ],
         }
-        data = await self.gemini_client.generate_structured_json(
-            prompt=prompt,
-            schema=schema,
-        )
-        return SpecialistBrief.model_validate(data)
+        try:
+            data = await self.gemini_client.generate_structured_json(
+                prompt=prompt,
+                schema=schema,
+            )
+            return SpecialistBrief.model_validate(data)
+        except Exception:
+            return await self._build_specialist_brief_fallback(
+                topic=topic,
+                intent=intent,
+                profile=profile,
+                evidence_digest=evidence_digest,
+            )
 
     async def build_deck_blueprint(
         self,
@@ -321,6 +331,86 @@ class PresentationAgentService:
             max_tokens=1400,
             temperature=0.1,
         )
+
+    async def _build_specialist_brief_fallback(
+        self,
+        *,
+        topic: str,
+        intent: str,
+        profile: dict[str, str],
+        evidence_digest: str,
+    ) -> SpecialistBrief:
+        prompt = (
+            f"You are {profile['name']}.\n"
+            f"Topic: {topic}\n"
+            f"Intent: {intent}\n\n"
+            "Return a concise specialist brief using exactly these labels and short content:\n"
+            "POINT_OF_VIEW:\n"
+            "CORE_THESIS:\n"
+            "AUDIENCE_FRAME:\n"
+            "NARRATIVE_ARC:\n"
+            "- item 1\n- item 2\n- item 3\n"
+            "EVIDENCE_PRIORITIES:\n"
+            "- item 1\n- item 2\n- item 3\n"
+            "SLIDE_STRATEGY:\n"
+            "- item 1\n- item 2\n- item 3\n"
+            "RISKS_AND_GAPS:\n"
+            "- item 1\n- item 2\n"
+            "RECOMMENDED_TONE:\n\n"
+            f"Evidence digest:\n{evidence_digest}"
+        )
+        text = await self.gemini_client.generate_text(
+            prompt=prompt,
+            max_tokens=1200,
+            temperature=0.1,
+        )
+        sections = self._parse_labeled_sections(text)
+        return SpecialistBrief(
+            specialist_name=profile["name"],
+            point_of_view=sections.get("POINT_OF_VIEW", profile["stance"]),
+            core_thesis=sections.get("CORE_THESIS", f"{topic} matters for the {intent} audience."),
+            audience_frame=sections.get("AUDIENCE_FRAME", f"Frame the topic through the lens of {intent} impact."),
+            narrative_arc=self._coerce_list(sections.get("NARRATIVE_ARC"), fallback=["Why now", "What matters", "What to do next"]),
+            evidence_priorities=self._coerce_list(
+                sections.get("EVIDENCE_PRIORITIES"),
+                fallback=["Strongest facts", "Key tradeoffs", "Critical evidence gaps"],
+            ),
+            slide_strategy=self._coerce_list(
+                sections.get("SLIDE_STRATEGY"),
+                fallback=["Open with stakes", "Build evidence", "Close with decision"],
+            ),
+            risks_and_gaps=self._coerce_list(sections.get("RISKS_AND_GAPS"), fallback=["Evidence gaps remain"]),
+            recommended_tone=sections.get("RECOMMENDED_TONE", "clear and credible"),
+        )
+
+    @staticmethod
+    def _parse_labeled_sections(text: str) -> dict[str, str]:
+        labels = [
+            "POINT_OF_VIEW",
+            "CORE_THESIS",
+            "AUDIENCE_FRAME",
+            "NARRATIVE_ARC",
+            "EVIDENCE_PRIORITIES",
+            "SLIDE_STRATEGY",
+            "RISKS_AND_GAPS",
+            "RECOMMENDED_TONE",
+        ]
+        pattern = re.compile(
+            rf"(?ms)^({'|'.join(labels)}):\s*(.*?)(?=^(?:{'|'.join(labels)}):|\Z)"
+        )
+        return {match.group(1): match.group(2).strip() for match in pattern.finditer(text)}
+
+    @staticmethod
+    def _coerce_list(value: str | None, *, fallback: list[str]) -> list[str]:
+        if not value:
+            return fallback
+        items = [
+            item.strip("- ").strip()
+            for item in value.splitlines()
+            if item.strip()
+        ]
+        cleaned = [item for item in items if item]
+        return cleaned[:3] or fallback
 
     @staticmethod
     def _orb_id(item: RetrievalResult) -> str:

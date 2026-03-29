@@ -179,7 +179,7 @@ class PresentationPipeline:
                 )
             )
 
-        pptx_path = self.pptx_builder.build(
+        rendered_files = self.pptx_builder.build(
             deck=deck,
             topic=topic,
             intent=resolved_intent,
@@ -189,10 +189,14 @@ class PresentationPipeline:
             AgentTraceStep(
                 agent="PPTX Builder",
                 stage="render",
-                summary=f"Rendered the presentation file at {pptx_path.name}.",
+                summary=(
+                    f"Rendered deck {rendered_files.deck_path.name} and notes deck "
+                    f"{rendered_files.notes_path.name}."
+                ),
             )
         )
-        download_url = f"/api/presentations/download/{pptx_path.name}"
+        download_url = f"/api/presentations/download/{rendered_files.deck_path.name}"
+        notes_download_url = f"/api/presentations/download/{rendered_files.notes_path.name}"
 
         return GeneratedPresentationResponse(
             topic=topic,
@@ -203,8 +207,11 @@ class PresentationPipeline:
             source_context=context,
             agent_trace=agent_trace,
             auto_researched=auto_researched,
-            pptx_path=str(pptx_path),
+            pptx_path=str(rendered_files.deck_path),
             download_url=download_url,
+            notes_pptx_path=str(rendered_files.notes_path),
+            notes_download_url=notes_download_url,
+            background_image=rendered_files.background_image,
         )
 
     async def _load_generation_context(self, *, topic: str, intent: str):

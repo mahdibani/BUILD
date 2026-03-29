@@ -138,3 +138,6 @@ class GeneratedPresentationResponse(BaseModel):
     auto_researched: bool = False
     pptx_path: str | None = None
     download_url: str | None = None
+    notes_pptx_path: str | None = None
+    notes_download_url: str | None = None
+    background_image: str | None = None

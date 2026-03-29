@@ -291,14 +291,26 @@ export default function WorkshopPage() {
                       {generationResult.specialist.specialist_name} with{" "}
                       {generationResult.challenger.length} challenger questions.
                     </span>
-                    <a
-                      className="submission-link"
-                      href={`${API_BASE_URL}${generationResult.download_url}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Download the .pptx
-                    </a>
+                    <div className="submission-link-row">
+                      <a
+                        className="submission-link"
+                        href={`${API_BASE_URL}${generationResult.download_url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Download deck
+                      </a>
+                      {generationResult.notes_download_url ? (
+                        <a
+                          className="submission-link"
+                          href={`${API_BASE_URL}${generationResult.notes_download_url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Download notes
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
                 {!generationResult && attachments.length ? (
@@ -414,28 +426,48 @@ export default function WorkshopPage() {
                       <h3>{generationResult.deck.deck_title}</h3>
                       <p>{generationResult.deck.deck_subtitle}</p>
                     </div>
-                    <a
-                      className="deck-download-button"
-                      href={`${API_BASE_URL}${generationResult.download_url}`}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      <MaterialIcon name="download" />
-                      <span>Deck file</span>
-                    </a>
+                    <div className="deck-download-actions">
+                      <a
+                        className="deck-download-button"
+                        href={`${API_BASE_URL}${generationResult.download_url}`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        <MaterialIcon name="download" />
+                        <span>Deck file</span>
+                      </a>
+                      {generationResult.notes_download_url ? (
+                        <a
+                          className="deck-download-button is-secondary"
+                          href={`${API_BASE_URL}${generationResult.notes_download_url}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <MaterialIcon name="speaker_notes" />
+                          <span>Notes file</span>
+                        </a>
+                      ) : null}
+                    </div>
                   </div>
 
                   <div className="deck-preview-meta">
                     <span>{generationResult.intent} intent</span>
                     <span>{generationResult.deck.slides.length} slides</span>
                     <span>{generationResult.challenger.length} Q&A prompts</span>
+                    {generationResult.background_image ? (
+                      <span>theme {generationResult.background_image}</span>
+                    ) : null}
                   </div>
                   {generationResult.agent_trace?.length ? (
-                    <div className="deck-preview-footer">
+                    <div className="agent-trace-list">
                       {generationResult.agent_trace.map((step, index) => (
-                        <span key={`${step.agent}-${step.stage}-${index}`}>
-                          {index + 1}. {step.agent}
-                        </span>
+                        <div key={`${step.agent}-${step.stage}-${index}`} className="agent-trace-item">
+                          <span className="agent-trace-step">{index + 1}</span>
+                          <div>
+                            <strong>{step.agent}</strong>
+                            <p>{step.summary}</p>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   ) : null}
@@ -446,7 +478,11 @@ export default function WorkshopPage() {
                         <span className="deck-preview-index">{slide.slide_number}</span>
                         <div>
                           <strong>{slide.title}</strong>
-                          <p>{slide.objective}</p>
+                          <p>{slide.summary_paragraph}</p>
+                          <div className="deck-slide-meta">
+                            <span>{slide.visual_type.replaceAll("_", " ")}</span>
+                            <span>{slide.evidence_orbs.length || 0} orbs</span>
+                          </div>
                         </div>
                       </div>
                     ))}

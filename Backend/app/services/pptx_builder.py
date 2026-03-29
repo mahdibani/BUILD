@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha1
 from io import BytesIO
 from pathlib import Path
 
@@ -18,9 +20,17 @@ INTENT_COLORS: dict[str, tuple[int, int, int]] = {
 }
 
 
+@dataclass
+class RenderedPresentationFiles:
+    deck_path: Path
+    notes_path: Path
+    background_image: str | None = None
+
+
 class PptxDeckBuilder:
-    def __init__(self, output_dir: Path) -> None:
+    def __init__(self, output_dir: Path, backgrounds_dir: Path | None = None) -> None:
         self.output_dir = output_dir
+        self.backgrounds_dir = backgrounds_dir
 
     def build(
         self,
@@ -29,12 +39,12 @@ class PptxDeckBuilder:
         topic: str,
         intent: str,
         context: list[RetrievalResult] | None = None,
-    ) -> Path:
+    ) -> RenderedPresentationFiles:
         try:
             from pptx import Presentation
             from pptx.dml.color import RGBColor
             from pptx.enum.shapes import MSO_SHAPE
-            from pptx.enum.text import PP_ALIGN, MSO_AUTO_SIZE
+            from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
             from pptx.util import Inches, Pt
         except ImportError as exc:
             raise RuntimeError(
@@ -42,128 +52,246 @@ class PptxDeckBuilder:
             ) from exc
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        prs = Presentation()
-        prs.slide_width = Inches(13.333)
-        prs.slide_height = Inches(7.5)
-
+        background_path = self._select_background_path(topic)
         accent = INTENT_COLORS.get(intent, (29, 78, 216))
         context_map = {self._orb_id(item): item for item in context or []}
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        slug = self._slugify(topic)
+
+        deck_prs = Presentation()
+        deck_prs.slide_width = Inches(13.333)
+        deck_prs.slide_height = Inches(7.5)
+
+        notes_prs = Presentation()
+        notes_prs.slide_width = Inches(13.333)
+        notes_prs.slide_height = Inches(7.5)
 
         for index, slide_plan in enumerate(deck.slides):
-            slide = prs.slides.add_slide(prs.slide_layouts[6])
-            self._paint_background(slide, accent, prs.slide_width)
-
-            title_box = slide.shapes.add_textbox(Inches(0.7), Inches(0.62), Inches(8.6), Inches(0.8))
-            title_frame = title_box.text_frame
-            title_frame.word_wrap = True
-            title_run = title_frame.paragraphs[0].add_run()
-            title_run.text = slide_plan.title
-            title_run.font.size = Pt(24 if index else 28)
-            title_run.font.bold = True
-            title_run.font.color.rgb = RGBColor(17, 24, 39)
-
-            objective_box = slide.shapes.add_textbox(Inches(0.7), Inches(1.25), Inches(8.7), Inches(0.5))
-            objective_frame = objective_box.text_frame
-            objective_run = objective_frame.paragraphs[0].add_run()
-            objective_run.text = slide_plan.objective
-            objective_run.font.size = Pt(12)
-            objective_run.font.bold = True
-            objective_run.font.color.rgb = RGBColor(*accent)
-
-            summary_box = slide.shapes.add_textbox(Inches(0.75), Inches(1.75), Inches(7.2), Inches(1.25))
-            summary_frame = summary_box.text_frame
-            summary_frame.word_wrap = True
-            summary_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-            summary_run = summary_frame.paragraphs[0].add_run()
-            summary_run.text = slide_plan.summary_paragraph
-            summary_run.font.size = Pt(14)
-            summary_run.font.color.rgb = RGBColor(51, 65, 85)
-
-            bullet_box = slide.shapes.add_textbox(Inches(0.8), Inches(3.05), Inches(6.8), Inches(2.9))
-            bullet_frame = bullet_box.text_frame
-            bullet_frame.word_wrap = True
-            bullet_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
-            for point_index, point in enumerate(slide_plan.key_points):
-                paragraph = bullet_frame.paragraphs[0] if point_index == 0 else bullet_frame.add_paragraph()
-                paragraph.text = point
-                paragraph.level = 0
-                paragraph.font.size = Pt(16)
-                paragraph.font.color.rgb = RGBColor(31, 41, 55)
-                paragraph.space_after = Pt(8)
-
-            image_placed = self._place_visual_asset(
+            slide = deck_prs.slides.add_slide(deck_prs.slide_layouts[6])
+            self._paint_background(
+                slide=slide,
+                accent=accent,
+                slide_width=deck_prs.slide_width,
+                slide_height=deck_prs.slide_height,
+                background_path=background_path,
+                soften_overlay=0.18,
+            )
+            self._render_main_slide(
                 slide=slide,
                 slide_plan=slide_plan,
+                accent=accent,
+                index=index,
                 context_map=context_map,
+            )
+
+            notes_slide = notes_prs.slides.add_slide(notes_prs.slide_layouts[6])
+            self._paint_background(
+                slide=notes_slide,
+                accent=accent,
+                slide_width=notes_prs.slide_width,
+                slide_height=notes_prs.slide_height,
+                background_path=background_path,
+                soften_overlay=0.1,
+            )
+            self._render_notes_slide(
+                slide=notes_slide,
+                slide_plan=slide_plan,
                 accent=accent,
             )
-            if not image_placed:
-                self._render_visual_brief(slide=slide, slide_plan=slide_plan, accent=accent)
 
-            notes_box = slide.shapes.add_shape(
-                MSO_SHAPE.ROUNDED_RECTANGLE,
-                Inches(7.85),
-                Inches(5.55),
-                Inches(4.6),
-                Inches(0.95),
-            )
-            notes_box.fill.solid()
-            notes_box.fill.fore_color.rgb = RGBColor(255, 255, 255)
-            notes_box.line.color.rgb = RGBColor(203, 213, 225)
-            notes_frame = notes_box.text_frame
-            notes_frame.word_wrap = True
-            notes_title = notes_frame.paragraphs[0].add_run()
-            notes_title.text = "Speaker note"
-            notes_title.font.size = Pt(11)
-            notes_title.font.bold = True
-            notes_title.font.color.rgb = RGBColor(*accent)
-            notes_body = notes_frame.add_paragraph()
-            notes_body.text = slide_plan.speaker_notes
-            notes_body.font.size = Pt(10.5)
-            notes_body.font.color.rgb = RGBColor(71, 85, 105)
+        deck_path = self.output_dir / f"{slug}_deck_{timestamp}.pptx"
+        notes_path = self.output_dir / f"{slug}_speaker_notes_{timestamp}.pptx"
+        deck_prs.save(deck_path)
+        notes_prs.save(notes_path)
+        return RenderedPresentationFiles(
+            deck_path=deck_path,
+            notes_path=notes_path,
+            background_image=background_path.name if background_path else None,
+        )
 
-            footer_box = slide.shapes.add_textbox(Inches(0.7), Inches(6.78), Inches(12.0), Inches(0.32))
-            footer_frame = footer_box.text_frame
-            footer_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
-            footer_run = footer_frame.paragraphs[0].add_run()
-            footer_run.text = (
-                f"Slide {slide_plan.slide_number}  |  Evidence: "
-                + (", ".join(slide_plan.evidence_orbs) if slide_plan.evidence_orbs else "reasoned synthesis")
-            )
-            footer_run.font.size = Pt(10)
-            footer_run.font.color.rgb = RGBColor(100, 116, 139)
+    def _render_main_slide(self, *, slide, slide_plan, accent: tuple[int, int, int], index: int, context_map: dict[str, RetrievalResult]) -> None:
+        from pptx.dml.color import RGBColor
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.enum.text import MSO_AUTO_SIZE, PP_ALIGN
+        from pptx.util import Inches, Pt
 
-        filename = f"{self._slugify(topic)}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pptx"
-        output_path = self.output_dir / filename
-        prs.save(output_path)
-        return output_path
+        content_panel = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(0.42),
+            Inches(0.48),
+            Inches(7.2),
+            Inches(5.95),
+        )
+        content_panel.fill.solid()
+        content_panel.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        content_panel.fill.transparency = 0.1
+        content_panel.line.fill.background()
 
-    def _paint_background(self, slide, accent: tuple[int, int, int], slide_width) -> None:
+        title_box = slide.shapes.add_textbox(Inches(0.75), Inches(0.7), Inches(6.4), Inches(0.9))
+        title_frame = title_box.text_frame
+        title_frame.word_wrap = True
+        title_run = title_frame.paragraphs[0].add_run()
+        title_run.text = slide_plan.title
+        title_run.font.size = Pt(24 if index else 28)
+        title_run.font.bold = True
+        title_run.font.color.rgb = RGBColor(15, 23, 42)
+
+        objective_box = slide.shapes.add_textbox(Inches(0.76), Inches(1.32), Inches(6.3), Inches(0.48))
+        objective_frame = objective_box.text_frame
+        objective_run = objective_frame.paragraphs[0].add_run()
+        objective_run.text = slide_plan.objective
+        objective_run.font.size = Pt(12)
+        objective_run.font.bold = True
+        objective_run.font.color.rgb = RGBColor(*accent)
+
+        summary_box = slide.shapes.add_textbox(Inches(0.8), Inches(1.82), Inches(6.05), Inches(1.6))
+        summary_frame = summary_box.text_frame
+        summary_frame.word_wrap = True
+        summary_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        summary_run = summary_frame.paragraphs[0].add_run()
+        summary_run.text = slide_plan.summary_paragraph
+        summary_run.font.size = Pt(14)
+        summary_run.font.color.rgb = RGBColor(51, 65, 85)
+
+        bullet_box = slide.shapes.add_textbox(Inches(0.86), Inches(3.22), Inches(5.95), Inches(2.65))
+        bullet_frame = bullet_box.text_frame
+        bullet_frame.word_wrap = True
+        bullet_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        for point_index, point in enumerate(slide_plan.key_points):
+            paragraph = bullet_frame.paragraphs[0] if point_index == 0 else bullet_frame.add_paragraph()
+            paragraph.text = point
+            paragraph.level = 0
+            paragraph.font.size = Pt(16)
+            paragraph.font.color.rgb = RGBColor(31, 41, 55)
+            paragraph.space_after = Pt(8)
+
+        image_placed = self._place_visual_asset(
+            slide=slide,
+            slide_plan=slide_plan,
+            context_map=context_map,
+            accent=accent,
+        )
+        if not image_placed:
+            self._render_visual_brief(slide=slide, slide_plan=slide_plan, accent=accent)
+
+        footer_box = slide.shapes.add_textbox(Inches(0.7), Inches(6.74), Inches(12.0), Inches(0.34))
+        footer_frame = footer_box.text_frame
+        footer_frame.paragraphs[0].alignment = PP_ALIGN.LEFT
+        footer_run = footer_frame.paragraphs[0].add_run()
+        footer_run.text = (
+            f"Slide {slide_plan.slide_number}  |  Evidence: "
+            + (", ".join(slide_plan.evidence_orbs) if slide_plan.evidence_orbs else "reasoned synthesis")
+        )
+        footer_run.font.size = Pt(10)
+        footer_run.font.color.rgb = RGBColor(71, 85, 105)
+
+    def _render_notes_slide(self, *, slide, slide_plan, accent: tuple[int, int, int]) -> None:
+        from pptx.dml.color import RGBColor
+        from pptx.enum.shapes import MSO_SHAPE
+        from pptx.enum.text import MSO_AUTO_SIZE
+        from pptx.util import Inches, Pt
+
+        title_box = slide.shapes.add_textbox(Inches(0.72), Inches(0.65), Inches(11.6), Inches(0.9))
+        title_frame = title_box.text_frame
+        title_frame.word_wrap = True
+        title_run = title_frame.paragraphs[0].add_run()
+        title_run.text = f"Speaker Notes | Slide {slide_plan.slide_number}: {slide_plan.title}"
+        title_run.font.size = Pt(24)
+        title_run.font.bold = True
+        title_run.font.color.rgb = RGBColor(255, 255, 255)
+
+        note_panel = slide.shapes.add_shape(
+            MSO_SHAPE.ROUNDED_RECTANGLE,
+            Inches(0.65),
+            Inches(1.5),
+            Inches(12.0),
+            Inches(4.6),
+        )
+        note_panel.fill.solid()
+        note_panel.fill.fore_color.rgb = RGBColor(255, 255, 255)
+        note_panel.fill.transparency = 0.12
+        note_panel.line.fill.background()
+
+        summary_box = slide.shapes.add_textbox(Inches(0.95), Inches(1.8), Inches(10.8), Inches(1.15))
+        summary_frame = summary_box.text_frame
+        summary_frame.word_wrap = True
+        summary_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        summary_title = summary_frame.paragraphs[0].add_run()
+        summary_title.text = "Slide summary"
+        summary_title.font.size = Pt(13)
+        summary_title.font.bold = True
+        summary_title.font.color.rgb = RGBColor(*accent)
+        summary_body = summary_frame.add_paragraph()
+        summary_body.text = slide_plan.summary_paragraph
+        summary_body.font.size = Pt(16)
+        summary_body.font.color.rgb = RGBColor(31, 41, 55)
+
+        notes_box = slide.shapes.add_textbox(Inches(0.95), Inches(3.0), Inches(10.8), Inches(1.85))
+        notes_frame = notes_box.text_frame
+        notes_frame.word_wrap = True
+        notes_frame.auto_size = MSO_AUTO_SIZE.TEXT_TO_FIT_SHAPE
+        notes_title = notes_frame.paragraphs[0].add_run()
+        notes_title.text = "Speaker notes"
+        notes_title.font.size = Pt(13)
+        notes_title.font.bold = True
+        notes_title.font.color.rgb = RGBColor(*accent)
+        notes_body = notes_frame.add_paragraph()
+        notes_body.text = slide_plan.speaker_notes
+        notes_body.font.size = Pt(16)
+        notes_body.font.color.rgb = RGBColor(31, 41, 55)
+
+        orb_box = slide.shapes.add_textbox(Inches(0.95), Inches(5.05), Inches(10.8), Inches(0.7))
+        orb_frame = orb_box.text_frame
+        orb_run = orb_frame.paragraphs[0].add_run()
+        orb_run.text = "Evidence orbs: " + (", ".join(slide_plan.evidence_orbs) if slide_plan.evidence_orbs else "reasoned synthesis")
+        orb_run.font.size = Pt(12)
+        orb_run.font.color.rgb = RGBColor(51, 65, 85)
+
+    def _paint_background(
+        self,
+        *,
+        slide,
+        accent: tuple[int, int, int],
+        slide_width,
+        slide_height,
+        background_path: Path | None,
+        soften_overlay: float,
+    ) -> None:
         from pptx.dml.color import RGBColor
         from pptx.enum.shapes import MSO_SHAPE
         from pptx.util import Inches
 
         background = slide.background.fill
         background.solid()
-        background.fore_color.rgb = RGBColor(247, 248, 250)
+        background.fore_color.rgb = RGBColor(12, 18, 28)
+
+        if background_path:
+            slide.shapes.add_picture(str(background_path), 0, 0, width=slide_width, height=slide_height)
+
+        overlay = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, 0, 0, slide_width, slide_height)
+        overlay.fill.solid()
+        overlay.fill.fore_color.rgb = RGBColor(248, 250, 252)
+        overlay.fill.transparency = soften_overlay
+        overlay.line.fill.background()
 
         top_band = slide.shapes.add_shape(
             MSO_SHAPE.RECTANGLE,
             Inches(0),
             Inches(0),
             slide_width,
-            Inches(0.42),
+            Inches(0.38),
         )
         top_band.fill.solid()
         top_band.fill.fore_color.rgb = RGBColor(*accent)
-        top_band.line.color.rgb = RGBColor(*accent)
+        top_band.fill.transparency = 0.08
+        top_band.line.fill.background()
 
         orb = slide.shapes.add_shape(
             MSO_SHAPE.OVAL,
-            Inches(9.4),
+            Inches(9.35),
             Inches(0.55),
-            Inches(3.1),
-            Inches(3.1),
+            Inches(3.3),
+            Inches(3.3),
         )
         orb.fill.solid()
         orb.fill.fore_color.rgb = RGBColor(*accent)
@@ -177,24 +305,25 @@ class PptxDeckBuilder:
 
         visual_box = slide.shapes.add_shape(
             MSO_SHAPE.ROUNDED_RECTANGLE,
-            Inches(7.85),
-            Inches(1.55),
-            Inches(4.6),
-            Inches(3.7),
+            Inches(7.75),
+            Inches(1.2),
+            Inches(4.95),
+            Inches(4.95),
         )
         visual_box.fill.solid()
         visual_box.fill.fore_color.rgb = RGBColor(255, 255, 255)
-        visual_box.line.color.rgb = RGBColor(203, 213, 225)
+        visual_box.fill.transparency = 0.08
+        visual_box.line.color.rgb = RGBColor(*accent)
         visual_frame = visual_box.text_frame
         visual_frame.word_wrap = True
         visual_header = visual_frame.paragraphs[0].add_run()
         visual_header.text = f"{slide_plan.visual_type.replace('_', ' ').title()} concept"
-        visual_header.font.size = Pt(15)
+        visual_header.font.size = Pt(16)
         visual_header.font.bold = True
         visual_header.font.color.rgb = RGBColor(*accent)
         visual_body = visual_frame.add_paragraph()
         visual_body.text = slide_plan.visual_brief
-        visual_body.font.size = Pt(13)
+        visual_body.font.size = Pt(14)
         visual_body.font.color.rgb = RGBColor(51, 65, 85)
 
     def _place_visual_asset(self, *, slide, slide_plan, context_map: dict[str, RetrievalResult], accent: tuple[int, int, int]) -> bool:
@@ -202,21 +331,31 @@ class PptxDeckBuilder:
         from pptx.enum.shapes import MSO_SHAPE
         from pptx.util import Inches, Pt
 
-        image_url = self._select_image_url(slide_plan.evidence_orbs, context_map)
-        if not image_url:
+        image_urls = self._select_image_urls(slide_plan.evidence_orbs, context_map, limit=2)
+        if not image_urls:
             return False
 
-        image_bytes = self._download_image(image_url)
-        if not image_bytes:
+        image_blobs: list[bytes] = []
+        for image_url in image_urls:
+            image_bytes = self._download_image(image_url)
+            if image_bytes:
+                image_blobs.append(image_bytes)
+
+        if not image_blobs:
             return False
 
-        slide.shapes.add_picture(BytesIO(image_bytes), Inches(7.85), Inches(1.55), width=Inches(4.6), height=Inches(3.7))
+        if len(image_blobs) == 1:
+            slide.shapes.add_picture(BytesIO(image_blobs[0]), Inches(7.75), Inches(1.2), width=Inches(4.95), height=Inches(4.95))
+        else:
+            slide.shapes.add_picture(BytesIO(image_blobs[0]), Inches(7.75), Inches(1.2), width=Inches(4.95), height=Inches(2.38))
+            slide.shapes.add_picture(BytesIO(image_blobs[1]), Inches(7.75), Inches(3.78), width=Inches(4.95), height=Inches(2.37))
+
         caption = slide.shapes.add_shape(
             MSO_SHAPE.ROUNDED_RECTANGLE,
-            Inches(8.1),
-            Inches(4.8),
-            Inches(4.1),
-            Inches(0.45),
+            Inches(8.05),
+            Inches(5.72),
+            Inches(4.35),
+            Inches(0.42),
         )
         caption.fill.solid()
         caption.fill.fore_color.rgb = RGBColor(255, 255, 255)
@@ -230,18 +369,45 @@ class PptxDeckBuilder:
         caption_run.font.color.rgb = RGBColor(31, 41, 55)
         return True
 
-    def _select_image_url(self, evidence_orbs: list[str], context_map: dict[str, RetrievalResult]) -> str | None:
+    def _select_image_urls(
+        self,
+        evidence_orbs: list[str],
+        context_map: dict[str, RetrievalResult],
+        *,
+        limit: int,
+    ) -> list[str]:
+        selected: list[str] = []
+        seen: set[str] = set()
+
         for orb in evidence_orbs:
             item = context_map.get(orb)
             if not item:
                 continue
-            metadata_url = item.metadata.get("image_url")
-            if isinstance(metadata_url, str) and metadata_url.startswith(("http://", "https://")):
-                return metadata_url
-            content_url = self._extract_first_image_url(item.content)
-            if content_url:
-                return content_url
-        return None
+            for candidate in self._candidate_image_urls(item):
+                if candidate not in seen:
+                    selected.append(candidate)
+                    seen.add(candidate)
+                if len(selected) >= limit:
+                    return selected
+
+        for item in context_map.values():
+            for candidate in self._candidate_image_urls(item):
+                if candidate not in seen:
+                    selected.append(candidate)
+                    seen.add(candidate)
+                if len(selected) >= limit:
+                    return selected
+        return selected
+
+    def _candidate_image_urls(self, item: RetrievalResult) -> list[str]:
+        candidates: list[str] = []
+        metadata_url = item.metadata.get("image_url")
+        if isinstance(metadata_url, str) and metadata_url.startswith(("http://", "https://")):
+            candidates.append(metadata_url)
+        content_url = self._extract_first_image_url(item.content)
+        if content_url:
+            candidates.append(content_url)
+        return candidates
 
     @staticmethod
     def _download_image(url: str) -> bytes | None:
@@ -257,6 +423,19 @@ class PptxDeckBuilder:
         if "webp" in content_type or "svg" in content_type:
             return None
         return response.content
+
+    def _select_background_path(self, topic: str) -> Path | None:
+        if not self.backgrounds_dir or not self.backgrounds_dir.exists():
+            return None
+        candidates = sorted(
+            path
+            for path in self.backgrounds_dir.iterdir()
+            if path.is_file() and path.suffix.lower() in {".jpg", ".jpeg", ".png"}
+        )
+        if not candidates:
+            return None
+        index = int(sha1(topic.encode("utf-8")).hexdigest(), 16) % len(candidates)
+        return candidates[index]
 
     @staticmethod
     def _extract_first_image_url(content: str) -> str | None:

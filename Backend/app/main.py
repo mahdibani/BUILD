@@ -34,7 +34,8 @@ sensory_service = SensoryService(
 )
 agent_service = PresentationAgentService(gemini_client=gemini_client, settings=settings)
 pptx_builder = PptxDeckBuilder(
-    output_dir=Path(__file__).resolve().parents[1] / settings.generated_presentations_dir
+    output_dir=Path(__file__).resolve().parents[1] / settings.generated_presentations_dir,
+    backgrounds_dir=Path(__file__).resolve().parents[2] / "images",
 )
 pipeline = PresentationPipeline(
     gemini_client=gemini_client,
