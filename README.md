@@ -1,172 +1,106 @@
-# PowerPointLess
+# Build
 
-Build-Slides is an autonomous, multi-agent presentation agency. It does more than turn text into slides. It researches, reasons, designs, and stress-tests a presentation based on your specific intent.
+**Build** is an autonomous, multi-agent presentation agency powered by Google Gemini. Give it a topic — it researches, reasons, builds the slides, and stress-tests them with a mock Q&A session.
 
-Whether you are pitching to investors, explaining an API, or defending a thesis, Build assembles the right specialist mindset for the job and helps you prepare for the Q&A that comes after the deck.
-
-## Architecture Overview
-
-The system follows a multimodal research and reasoning pipeline with four distinct phases:
+## Architecture
 
 ![Build architecture diagram](assets/build-arch.png)
 
-### 1. Intake & Intent Classification
+The pipeline runs through four phases: **intent classification** → **multimodal research & ingestion** → **specialist agent reasoning** → **deck production + challenger Q&A**. Each phase is handled by a dedicated agent — The Scout, The Architect/Strategist/Scholar/Storyteller, The Producer, and The Challenger.
 
-The pipeline begins by identifying the intent behind the presentation. This step shapes the entire downstream strategy.
+## Agent Roster
 
-- If resources are provided, the system parses and studies them directly.
-- If resources are missing, the system creates a search directive to gather domain-specific evidence.
+| Agent | Role |
+|-------|------|
+| **Gemini Classifier** | Routes topic to `technical / business / academic / creative` |
+| **The Scout** | Firecrawl-powered web research across 5 auto-generated queries |
+| **Sensory Service** | Ingests PDFs, images, audio, video, YouTube, and web URLs |
+| **The Architect** | Technical specialist — systems, tradeoffs, specs |
+| **The Strategist** | Business specialist — market, ROI, executive framing |
+| **The Scholar** | Academic specialist — rigor, citations, methodology |
+| **The Storyteller** | Creative specialist — narrative, emotion, visual impact |
+| **The Producer** | Builds the 8-slide deck blueprint from the specialist brief |
+| **The Challenger** | Generates 6 ranked mock Q&A questions from knowledge gaps |
+| **PPTX Builder** | Renders main deck + speaker notes deck as `.pptx` files |
 
-This intake layer acts as the decision point for how research should happen and which specialist should eventually take the lead.
+## Tech Stack
 
-### 2. Sensory Ingestion
+| Layer | Technology |
+|-------|-----------|
+| Backend | FastAPI + Uvicorn |
+| AI (generation) | Gemini 2.5 Flash |
+| AI (embeddings) | Gemini Embedding 2.0 Flash Preview |
+| Vector store | Qdrant |
+| Web research | Firecrawl |
+| Slide rendering | python-pptx |
+| Frontend | React 18 + Vite |
 
-Build gathers information from multiple modalities and converts them into a shared memory layer.
+## API
 
-- `The Scout` uses Firecrawl for deep, intent-aware web research.
-- `The Librarians` parse PDFs, YouTube transcripts, and audio files.
-- `Gemini Embedding 2` processes text, visuals, and media signals into a unified multimodal vector store called `Core Memory`.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/presentations/intake` | Research a topic and load memory |
+| `POST` | `/api/presentations/generate` | Generate full deck (auto-researches if needed) |
+| `GET` | `/api/presentations/download/{filename}` | Download generated `.pptx` |
+| `GET` | `/health` | Health check |
 
-This gives the system a common retrieval layer that supports reasoning across documents, websites, audio, and visual content.
+Interactive docs at **`http://localhost:8000/docs`**.
 
-### 3. Specialized Reasoning
-
-Once intent is identified, Build activates the right expert to shape the presentation:
-
-- `The Strategist` for business decks, ROI framing, market context, and value propositions.
-- `The Architect` for technical presentations, system design, specs, and implementation logic.
-- `The Scholar` for academic work, citations, data integrity, and methodology.
-- `The Storyteller` for creative presentations, narrative arcs, hooks, and visual impact.
-
-These agents do not just summarize source material. They interpret it through the lens of audience, purpose, and presentation style.
-
-### 4. Production & Stress Testing
-
-After reasoning is complete, Build moves into delivery and preparation.
-
-- `The Producer` programmatically generates the final `.pptx` presentation.
-- `The Challenger` reviews the core memory for important material that did not make it into the slides and turns those gaps into a mock Q&A experience.
-
-The result is not just a slide deck, but a presentation workflow that also prepares the speaker for real audience pressure.
-
-## Pipeline Logic
-
-At a high level, the flow looks like this:
-
-1. The user provides a topic and optional files.
-2. The system classifies the presentation intent.
-3. Build either parses provided resources or launches targeted research.
-4. All multimodal inputs are embedded into shared core memory.
-5. A specialist agent is selected based on the presentation context.
-6. The slide deck is generated from that specialist's reasoning.
-7. The Challenger produces a mock Q&A session from uncovered knowledge gaps.
-
-## Key Features
-
-- `Native Multimodal RAG`: Agents can reason across text, visuals, transcripts, and audio from a shared retrieval layer.
-- `Intent-Driven Research`: Research strategy changes based on audience and goal, not just topic keywords.
-- `Specialist Agents`: Different presentation types trigger different reasoning behaviors.
-- `Automated Deck Production`: Output is a generated `.pptx`, not just notes or bullet points.
-- `Stress-Tested Delivery`: The Challenger helps users rehearse difficult questions before the real presentation.
-
-## Why Build
-
-Most slide tools help you format content. Build helps you think, structure, and defend it.
-
-It is designed for presentations where the stakes are higher than aesthetics alone: investor pitches, technical architecture reviews, academic defenses, and narrative-driven talks that need both substance and polish.
-
----
-
-## Getting Started (Docker — recommended)
-
-The entire development stack (backend, frontend, and vector database) can be spun up with a single command. No Python virtualenv, no Node version juggling.
+## Getting Started
 
 ### Prerequisites
 
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) ≥ 24 (with Compose v2 included)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) ≥ 24
 
-### 1. Configure environment variables
+### 1. Set up environment
 
 ```bash
 cp Backend/.env.example Backend/.env
-# Open Backend/.env and add your GEMINI_API_KEY and FIRECRAWL_API_KEY
+# Fill in GEMINI_API_KEY and FIRECRAWL_API_KEY
 ```
 
-### 2. Start the dev stack
+### 2. Run
 
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-| Service  | URL                        | Notes                          |
-|----------|----------------------------|--------------------------------|
-| Frontend | http://localhost:5173      | Vite + HMR — changes reload instantly |
-| Backend  | http://localhost:8000      | FastAPI + uvicorn --reload      |
-| API Docs | http://localhost:8000/docs | Auto-generated Swagger UI       |
-| Qdrant   | http://localhost:6333      | Vector DB dashboard             |
+| Service | URL |
+|---------|-----|
+| Frontend | http://localhost:5173 |
+| Backend | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
+| Qdrant | http://localhost:6333/dashboard |
 
-> **Hot-reload is fully wired.** The source directories are bind-mounted into the containers, so saving any `.py` or `.jsx` file restarts/reloads the relevant service automatically — no rebuilds required.
-
-### Stopping the stack
+> Hot-reload is enabled for both frontend and backend — no rebuilds needed during development.
 
 ```bash
+# Stop
 docker compose -f docker-compose.dev.yml down
-```
 
-To also remove the Qdrant data volume:
-
-```bash
+# Stop + wipe vector data
 docker compose -f docker-compose.dev.yml down -v
 ```
 
-### Docker file layout
-
-```
-BUILD/
-├── docker-compose.dev.yml        ← orchestrates all three services
-├── Backend/
-│   ├── Dockerfile.dev            ← FastAPI dev image (hot-reload)
-│   └── .dockerignore
-└── Frontend/
-    ├── Dockerfile.dev            ← Vite dev image (HMR)
-    └── .dockerignore
-```
-
----
-
-## Manual Setup (without Docker)
-
 <details>
-<summary>Expand for local setup instructions</summary>
+<summary>Manual setup (without Docker)</summary>
 
-### Backend
+**Qdrant**
+```bash
+docker compose -f docker-compose.qdrant.yml up -d
+```
 
+**Backend**
 ```bash
 cd Backend
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# macOS / Linux
-source .venv/bin/activate
-
+python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env   # fill in your API keys
-
 uvicorn app.main:app --reload
 ```
 
-### Frontend
-
+**Frontend**
 ```bash
-cd Frontend
-npm install
-npm run dev
-```
-
-### Qdrant
-
-```bash
-docker compose -f docker-compose.qdrant.yml up -d
+cd Frontend && npm install && npm run dev
 ```
 
 </details>
