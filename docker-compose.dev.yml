@@ -1,0 +1,75 @@
+# ── Docker Compose › Development Stack ───────────────────────────────────────
+# Starts all three services wired together:
+#   • backend   → FastAPI  (hot-reload)  → http://localhost:8000
+#   • frontend  → Vite HMR              → http://localhost:5173
+#   • qdrant    → Vector DB             → http://localhost:6333
+#
+# Usage:
+#   1. Copy Backend/.env.example → Backend/.env and fill in your API keys.
+#   2. docker compose -f docker-compose.dev.yml up --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: build-dev
+
+services:
+
+  # ── Qdrant vector database ──────────────────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: build-qdrant-dev
+    ports:
+      - "6333:6333"   # REST API
+      - "6334:6334"   # gRPC
+    volumes:
+      - qdrant_storage_dev:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── FastAPI backend ─────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile.dev
+    container_name: build-backend-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      # Bind-mount source so hot-reload picks up every save instantly
+      - ./Backend:/app
+      # Keep the generated presentations on the host for easy access
+      - ./Backend/generated_presentations:/app/generated_presentations
+    env_file:
+      - ./Backend/.env
+    environment:
+      # Point Qdrant at the service name, not localhost
+      QDRANT_URL: http://qdrant:6333
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── React + Vite frontend ───────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile.dev
+    container_name: build-frontend-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      # Bind-mount source for HMR
+      - ./Frontend:/app
+      # Prevent host node_modules from shadowing the container's
+      - /app/node_modules
+    environment:
+      # Let Vite know which backend URL to hit
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage_dev:

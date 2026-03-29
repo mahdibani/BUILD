@@ -3,5 +3,6 @@ Frontend/dist/
 _stitch/
 **/__pycache__/
 *.pyc
+Backend/.venv/
 Backend/.env
-Backend/.env.example
+# .env.example is intentionally tracked — it's the setup template

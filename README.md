@@ -74,3 +74,99 @@ At a high level, the flow looks like this:
 Most slide tools help you format content. Build helps you think, structure, and defend it.
 
 It is designed for presentations where the stakes are higher than aesthetics alone: investor pitches, technical architecture reviews, academic defenses, and narrative-driven talks that need both substance and polish.
+
+---
+
+## Getting Started (Docker — recommended)
+
+The entire development stack (backend, frontend, and vector database) can be spun up with a single command. No Python virtualenv, no Node version juggling.
+
+### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) ≥ 24 (with Compose v2 included)
+
+### 1. Configure environment variables
+
+```bash
+cp Backend/.env.example Backend/.env
+# Open Backend/.env and add your GEMINI_API_KEY and FIRECRAWL_API_KEY
+```
+
+### 2. Start the dev stack
+
+```bash
+docker compose -f docker-compose.dev.yml up --build
+```
+
+| Service  | URL                        | Notes                          |
+|----------|----------------------------|--------------------------------|
+| Frontend | http://localhost:5173      | Vite + HMR — changes reload instantly |
+| Backend  | http://localhost:8000      | FastAPI + uvicorn --reload      |
+| API Docs | http://localhost:8000/docs | Auto-generated Swagger UI       |
+| Qdrant   | http://localhost:6333      | Vector DB dashboard             |
+
+> **Hot-reload is fully wired.** The source directories are bind-mounted into the containers, so saving any `.py` or `.jsx` file restarts/reloads the relevant service automatically — no rebuilds required.
+
+### Stopping the stack
+
+```bash
+docker compose -f docker-compose.dev.yml down
+```
+
+To also remove the Qdrant data volume:
+
+```bash
+docker compose -f docker-compose.dev.yml down -v
+```
+
+### Docker file layout
+
+```
+BUILD/
+├── docker-compose.dev.yml        ← orchestrates all three services
+├── Backend/
+│   ├── Dockerfile.dev            ← FastAPI dev image (hot-reload)
+│   └── .dockerignore
+└── Frontend/
+    ├── Dockerfile.dev            ← Vite dev image (HMR)
+    └── .dockerignore
+```
+
+---
+
+## Manual Setup (without Docker)
+
+<details>
+<summary>Expand for local setup instructions</summary>
+
+### Backend
+
+```bash
+cd Backend
+python -m venv .venv
+# Windows
+.venv\Scripts\activate
+# macOS / Linux
+source .venv/bin/activate
+
+pip install -r requirements.txt
+cp .env.example .env   # fill in your API keys
+
+uvicorn app.main:app --reload
+```
+
+### Frontend
+
+```bash
+cd Frontend
+npm install
+npm run dev
+```
+
+### Qdrant
+
+```bash
+docker compose -f docker-compose.qdrant.yml up -d
+```
+
+</details>

@@ -1,0 +1,10 @@
+# Node artefacts (heavy — not needed in image, installed fresh)
+node_modules/
+
+# Build output
+dist/
+
+# IDE & OS noise
+.idea/
+.vscode/
+*.DS_Store

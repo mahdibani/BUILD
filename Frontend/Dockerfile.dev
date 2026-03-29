@@ -1,0 +1,26 @@
+# ── Frontend › Development Image ─────────────────────────────────────────────
+# Vite dev server with Hot Module Replacement (HMR).
+# Source code is bind-mounted from the host (see docker-compose.dev.yml) so
+# every file save instantly reflects in the browser — no rebuild needed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+FROM node:20-slim
+
+# Keeps Node output unbuffered
+ENV NODE_ENV=development
+
+WORKDIR /app
+
+# Install dependencies first (cached layer — only re-runs when package files change)
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy the rest of the source (overridden by bind-mount in dev)
+COPY . .
+
+# Expose Vite's default dev port
+EXPOSE 5173
+
+# --host 0.0.0.0  → makes Vite accessible outside the container
+# --poll           → fallback file-watching for Docker on Windows/Mac hosts
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--poll"]

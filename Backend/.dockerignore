@@ -1,0 +1,22 @@
+# Python artefacts
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Secrets — never bake into an image
+.env
+
+# Generated output (large, runtime-only)
+generated_presentations/
+
+# IDE & OS noise
+.idea/
+.vscode/
+*.DS_Store
