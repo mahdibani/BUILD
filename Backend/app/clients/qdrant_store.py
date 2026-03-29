@@ -107,3 +107,41 @@ class QdrantStore:
             )
             for point in results
         ]
+
+    def list_topic_memories(
+        self,
+        *,
+        topic: str,
+        intent: str,
+        limit: int = 10,
+    ) -> list[RetrievalResult]:
+        records, _ = self.client.scroll(
+            collection_name=self.settings.qdrant_collection,
+            scroll_filter=qdrant_models.Filter(
+                must=[
+                    qdrant_models.FieldCondition(
+                        key="intent",
+                        match=qdrant_models.MatchValue(value=intent),
+                    ),
+                    qdrant_models.FieldCondition(
+                        key="topic",
+                        match=qdrant_models.MatchValue(value=topic),
+                    ),
+                ]
+            ),
+            limit=limit,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        return [
+            RetrievalResult(
+                id=str(record.id),
+                score=float(limit - index),
+                content=(record.payload or {}).get("content", ""),
+                source=(record.payload or {}).get("source", ""),
+                intent=(record.payload or {}).get("intent", ""),
+                metadata=(record.payload or {}).get("metadata", {}),
+            )
+            for index, record in enumerate(records, start=1)
+        ]

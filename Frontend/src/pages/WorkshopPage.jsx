@@ -27,6 +27,7 @@ export default function WorkshopPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
   const [intakeResult, setIntakeResult] = useState(null);
+  const [generationResult, setGenerationResult] = useState(null);
 
   const selectedPitch = useMemo(
     () => pitchCards.find((card) => card.id === selectedPitchId) ?? pitchCards[0],
@@ -92,6 +93,7 @@ export default function WorkshopPage() {
     setIsSubmitting(true);
     setSubmitError("");
     setIntakeResult(null);
+    setGenerationResult(null);
 
     try {
       const formData = new FormData();
@@ -116,8 +118,29 @@ export default function WorkshopPage() {
         throw new Error(details || "The backend request failed.");
       }
 
-      const result = await response.json();
-      setIntakeResult(result);
+      const intake = await response.json();
+      setIntakeResult(intake);
+
+      const generationResponse = await fetch(`${API_BASE_URL}/api/presentations/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          topic: idea.trim(),
+          intent: intake.intent.intent,
+          include_challenger: true,
+          auto_research: false,
+        }),
+      });
+
+      if (!generationResponse.ok) {
+        const details = await generationResponse.text();
+        throw new Error(details || "The presentation generation step failed.");
+      }
+
+      const generated = await generationResponse.json();
+      setGenerationResult(generated);
       setShowToast(true);
       window.setTimeout(() => setShowToast(false), 2600);
     } catch (error) {
@@ -238,6 +261,24 @@ export default function WorkshopPage() {
                     </span>
                   </div>
                 ) : null}
+                {generationResult ? (
+                  <div className="submission-banner is-success is-royal">
+                    <strong>{generationResult.deck.deck_title} is ready.</strong>
+                    <span>
+                      {generationResult.deck.slides.length} slides shaped by{" "}
+                      {generationResult.specialist.specialist_name} with{" "}
+                      {generationResult.challenger.length} challenger questions.
+                    </span>
+                    <a
+                      className="submission-link"
+                      href={`${API_BASE_URL}${generationResult.download_url}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Download the .pptx
+                    </a>
+                  </div>
+                ) : null}
                 <div className="sheet-meta">
                   <div className="draft-meta">
                     <span className="dot" />
@@ -328,6 +369,49 @@ export default function WorkshopPage() {
                   </button>
                 ))}
               </div>
+
+              {generationResult ? (
+                <div className="deck-preview-card">
+                  <div className="deck-preview-header">
+                    <div>
+                      <h3>{generationResult.deck.deck_title}</h3>
+                      <p>{generationResult.deck.deck_subtitle}</p>
+                    </div>
+                    <a
+                      className="deck-download-button"
+                      href={`${API_BASE_URL}${generationResult.download_url}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <MaterialIcon name="download" />
+                      <span>Deck file</span>
+                    </a>
+                  </div>
+
+                  <div className="deck-preview-meta">
+                    <span>{generationResult.intent} intent</span>
+                    <span>{generationResult.deck.slides.length} slides</span>
+                    <span>{generationResult.challenger.length} Q&A prompts</span>
+                  </div>
+
+                  <div className="deck-preview-list">
+                    {generationResult.deck.slides.slice(0, 4).map((slide) => (
+                      <div key={slide.slide_number} className="deck-preview-item">
+                        <span className="deck-preview-index">{slide.slide_number}</span>
+                        <div>
+                          <strong>{slide.title}</strong>
+                          <p>{slide.objective}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="deck-preview-footer">
+                    <span>{generationResult.specialist.specialist_name}</span>
+                    <span>{generationResult.specialist.recommended_tone}</span>
+                  </div>
+                </div>
+              ) : null}
             </aside>
           </section>
 
@@ -345,7 +429,11 @@ export default function WorkshopPage() {
             <MaterialIcon name="ink_highlighter" filled className="memory-toast-icon" />
             <div>
               <strong>Council aligned</strong>
-              <p>Your idea was passed into the chamber for review.</p>
+              <p>
+                {generationResult
+                  ? "The deck and challenger brief are ready to inspect."
+                  : "Your idea was passed into the chamber for review."}
+              </p>
             </div>
           </div>
         ) : null}
