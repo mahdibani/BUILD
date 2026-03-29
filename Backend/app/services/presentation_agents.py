@@ -57,15 +57,15 @@ class PresentationAgentService:
         context: list[RetrievalResult],
     ) -> SpecialistBrief:
         profile = INTENT_PROFILES[intent]
+        evidence_digest = await self._build_evidence_digest(topic=topic, intent=intent, context=context)
         prompt = (
             f"You are {profile['name']} inside an autonomous presentation agency.\n"
             f"{profile['stance']}\n\n"
             f"Topic: {topic}\n"
             f"Intent: {intent}\n\n"
-            "Create a strategic presentation brief using only the supplied memory orbs. "
-            "Ignore weak or noisy source fragments when better evidence exists. "
-            "Be concise and concrete.\n\n"
-            f"Memory orbs:\n{self._format_context(context, max_items=6, max_chars=420)}"
+            "Create a strategic presentation brief using only the supplied evidence digest. "
+            "Be concise, concrete, and decision-useful.\n\n"
+            f"Evidence digest:\n{evidence_digest}"
         )
         schema = {
             "type": "object",
@@ -78,24 +78,24 @@ class PresentationAgentService:
                     "type": "array",
                     "items": {"type": "string"},
                     "minItems": 3,
-                    "maxItems": 4,
+                    "maxItems": 3,
                 },
                 "evidence_priorities": {
                     "type": "array",
                     "items": {"type": "string"},
                     "minItems": 3,
-                    "maxItems": 4,
+                    "maxItems": 3,
                 },
                 "slide_strategy": {
                     "type": "array",
                     "items": {"type": "string"},
                     "minItems": 3,
-                    "maxItems": 4,
+                    "maxItems": 3,
                 },
                 "risks_and_gaps": {
                     "type": "array",
                     "items": {"type": "string"},
-                    "maxItems": 4,
+                    "maxItems": 3,
                 },
                 "recommended_tone": {"type": "string"},
             },
@@ -114,7 +114,6 @@ class PresentationAgentService:
         data = await self.gemini_client.generate_structured_json(
             prompt=prompt,
             schema=schema,
-            max_tokens=self.settings.specialist_max_tokens,
         )
         return SpecialistBrief.model_validate(data)
 
@@ -298,6 +297,30 @@ class PresentationAgentService:
                 f"content={excerpt}"
             )
         return "\n\n".join(formatted)
+
+    async def _build_evidence_digest(
+        self,
+        *,
+        topic: str,
+        intent: str,
+        context: list[RetrievalResult],
+    ) -> str:
+        prompt = (
+            "Summarize the most important evidence for a presentation specialist.\n"
+            f"Topic: {topic}\n"
+            f"Intent: {intent}\n\n"
+            "Return a compact digest with these sections only:\n"
+            "1. strongest facts\n"
+            "2. major tradeoffs or tensions\n"
+            "3. important risks or missing evidence\n"
+            "4. the 3 most useful ORB ids to cite\n\n"
+            f"Memory orbs:\n{self._format_context(context, max_items=6, max_chars=360)}"
+        )
+        return await self.gemini_client.generate_text(
+            prompt=prompt,
+            max_tokens=1400,
+            temperature=0.1,
+        )
 
     @staticmethod
     def _orb_id(item: RetrievalResult) -> str:

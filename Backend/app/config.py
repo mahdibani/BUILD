@@ -25,10 +25,11 @@ class Settings(BaseSettings):
     gemini_embedding_dimension: int = Field(default=1536)
     classifier_max_tokens: int = Field(default=400)
     generation_max_tokens: int = Field(default=1200)
-    specialist_max_tokens: int = Field(default=2400)
+    specialist_max_tokens: int = Field(default=4096)
     deck_blueprint_max_tokens: int = Field(default=5200)
     challenger_max_tokens: int = Field(default=2600)
     structured_repair_token_buffer: int = Field(default=2400)
+    gemini_timeout_seconds: float = Field(default=180.0)
 
     firecrawl_search_limit: int = Field(default=3)
     max_text_chars: int = Field(default=3500)

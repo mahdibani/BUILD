@@ -119,6 +119,29 @@ class GeminiClient:
         )
         return self._strip_json_fence(self._extract_text(data))
 
+    async def generate_text(
+        self,
+        *,
+        prompt: str,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float = 0.2,
+    ) -> str:
+        generation_config: dict[str, Any] = {"temperature": temperature}
+        if max_tokens is not None:
+            generation_config["maxOutputTokens"] = max_tokens
+
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": generation_config,
+        }
+
+        data = await self._post_json(
+            f"/v1beta/models/{model or self.settings.gemini_generation_model}:generateContent",
+            payload,
+        )
+        return self._extract_text(data)
+
     async def embed_text(self, text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> list[float]:
         payload: dict[str, Any] = {
             "model": f"models/{self.settings.gemini_embedding_model}",
@@ -184,13 +207,25 @@ class GeminiClient:
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient(base_url=self.base_url, timeout=60.0) as client:
+        timeout = httpx.Timeout(
+            timeout=self.settings.gemini_timeout_seconds,
+            connect=min(self.settings.gemini_timeout_seconds, 30.0),
+        )
+
+        async with httpx.AsyncClient(base_url=self.base_url, timeout=timeout) as client:
             max_attempts = 4
             for attempt in range(1, max_attempts + 1):
-                response = await client.post(path, headers=headers, json=payload)
                 try:
+                    response = await client.post(path, headers=headers, json=payload)
                     response.raise_for_status()
                     return response.json()
+                except httpx.ReadTimeout as exc:
+                    if attempt < max_attempts:
+                        await asyncio.sleep(float(2 ** (attempt - 1)))
+                        continue
+                    raise RuntimeError(
+                        f"Gemini API request timed out after {self.settings.gemini_timeout_seconds} seconds."
+                    ) from exc
                 except httpx.HTTPStatusError as exc:
                     if attempt < max_attempts and self._should_retry(response.status_code):
                         retry_after = self._retry_after_seconds(response)
