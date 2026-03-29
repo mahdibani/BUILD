@@ -77,6 +77,7 @@ class SlideBlueprint(BaseModel):
     slide_number: int
     title: str
     objective: str
+    summary_paragraph: str
     key_points: list[str] = Field(min_length=3, max_length=5)
     visual_type: Literal[
         "title",

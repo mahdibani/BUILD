@@ -139,7 +139,12 @@ class PresentationPipeline:
                 context=context,
             )
 
-        pptx_path = self.pptx_builder.build(deck=deck, topic=topic, intent=resolved_intent)
+        pptx_path = self.pptx_builder.build(
+            deck=deck,
+            topic=topic,
+            intent=resolved_intent,
+            context=context,
+        )
         download_url = f"/api/presentations/download/{pptx_path.name}"
 
         return GeneratedPresentationResponse(

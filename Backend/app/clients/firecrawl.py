@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 from urllib.parse import urlparse
 
@@ -93,7 +94,12 @@ class FirecrawlClient:
                             "query": query,
                             "url": url,
                             "title": result.get("title"),
-                        },
+                        }
+                        | (
+                            {"image_url": image_url}
+                            if (image_url := self._extract_first_image_url(content))
+                            else {}
+                        ),
                     )
                 )
 
@@ -149,3 +155,13 @@ class FirecrawlClient:
         if urlparse(url).scheme:
             return url
         return f"https://{url.lstrip('/')}"
+
+    @staticmethod
+    def _extract_first_image_url(content: str) -> str | None:
+        matches = re.findall(r"!\[[^\]]*\]\(([^)]+)\)", content)
+        for match in matches:
+            cleaned = match.strip().strip("<>").strip()
+            if cleaned.startswith("http://") or cleaned.startswith("https://"):
+                if "base64-image-removed" not in cleaned.lower():
+                    return cleaned
+        return None

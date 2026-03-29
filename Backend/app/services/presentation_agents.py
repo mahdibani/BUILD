@@ -130,8 +130,10 @@ class PresentationAgentService:
             f"Intent: {intent}\n"
             f"Specialist brief:\n{brief.model_dump_json(indent=2)}\n\n"
             f"Memory orbs:\n{self._format_context(context)}\n\n"
-            "Create 8 slides. Keep titles sharp, objectives to one sentence, key points short, "
-            "and speaker notes to at most two compact sentences. "
+            "Create 8 slides. Keep titles sharp and objectives to one sentence, but make the slide body richer. "
+            "Each slide needs a summary_paragraph of 2 to 4 sentences that explains the point in human language. "
+            "Key points should be concrete and informative, not fragments. "
+            "Speaker notes can be 3 concise sentences when useful. "
             "Include evidence_orbs using the ORB ids whenever a slide is supported by source material."
         )
         schema = {
@@ -152,10 +154,11 @@ class PresentationAgentService:
                             "slide_number": {"type": "integer"},
                             "title": {"type": "string"},
                             "objective": {"type": "string"},
+                            "summary_paragraph": {"type": "string"},
                             "key_points": {
                                 "type": "array",
                                 "items": {"type": "string"},
-                                "minItems": 3,
+                                "minItems": 4,
                                 "maxItems": 5,
                             },
                             "visual_type": {
@@ -185,6 +188,7 @@ class PresentationAgentService:
                             "slide_number",
                             "title",
                             "objective",
+                            "summary_paragraph",
                             "key_points",
                             "visual_type",
                             "visual_brief",
@@ -206,7 +210,7 @@ class PresentationAgentService:
         data = await self.gemini_client.generate_structured_json(
             prompt=prompt,
             schema=schema,
-            max_tokens=3200,
+            max_tokens=3800,
         )
         return DeckBlueprint.model_validate(data)
 
