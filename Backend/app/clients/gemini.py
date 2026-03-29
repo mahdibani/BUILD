@@ -44,21 +44,59 @@ class GeminiClient:
             "required": ["intent", "search_queries", "tone", "user_goal"],
         }
 
+        text = await self.generate_structured_text(
+            prompt=prompt,
+            schema=schema,
+            model=self.settings.gemini_classifier_model,
+            max_tokens=self.settings.classifier_max_tokens,
+        )
+        return IntentResponse.model_validate(json.loads(text))
+
+    async def generate_structured_json(
+        self,
+        *,
+        prompt: str,
+        schema: dict[str, Any],
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float = 0.2,
+    ) -> dict[str, Any]:
+        text = await self.generate_structured_text(
+            prompt=prompt,
+            schema=schema,
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return json.loads(text)
+
+    async def generate_structured_text(
+        self,
+        *,
+        prompt: str,
+        schema: dict[str, Any],
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float = 0.2,
+    ) -> str:
+        generation_config: dict[str, Any] = {
+            "temperature": temperature,
+            "responseMimeType": "application/json",
+            "responseJsonSchema": schema,
+        }
+        if max_tokens is not None:
+            generation_config["maxOutputTokens"] = max_tokens
+
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.2,
-                "responseMimeType": "application/json",
-                "responseJsonSchema": schema,
-            },
+            "generationConfig": generation_config,
         }
 
         data = await self._post_json(
-            f"/v1beta/models/{self.settings.gemini_classifier_model}:generateContent",
+            f"/v1beta/models/{model or self.settings.gemini_generation_model}:generateContent",
             payload,
         )
-        text = self._strip_json_fence(self._extract_text(data))
-        return IntentResponse.model_validate(json.loads(text))
+        return self._strip_json_fence(self._extract_text(data))
 
     async def embed_text(self, text: str, task_type: str = "RETRIEVAL_DOCUMENT") -> list[float]:
         payload: dict[str, Any] = {

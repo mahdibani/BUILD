@@ -11,6 +11,7 @@ async def get_specialist_context(
     *,
     gemini_client: GeminiClient,
     qdrant_store: QdrantStore,
+    topic: str | None = None,
 ) -> list[RetrievalResult]:
     vector = await gemini_client.embed_text(query, task_type="RETRIEVAL_QUERY")
-    return qdrant_store.search(vector=vector, intent=intent, limit=10)
+    return qdrant_store.search(vector=vector, intent=intent, topic=topic, limit=10)

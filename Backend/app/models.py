@@ -59,3 +59,74 @@ class SpecialistContextResponse(BaseModel):
     query: str
     intent: Literal["technical", "business", "academic", "creative"]
     results: list[RetrievalResult]
+
+
+class SpecialistBrief(BaseModel):
+    specialist_name: str
+    point_of_view: str
+    core_thesis: str
+    audience_frame: str
+    narrative_arc: list[str] = Field(min_length=3, max_length=6)
+    evidence_priorities: list[str] = Field(min_length=3, max_length=6)
+    slide_strategy: list[str] = Field(min_length=3, max_length=6)
+    risks_and_gaps: list[str] = Field(default_factory=list)
+    recommended_tone: str
+
+
+class SlideBlueprint(BaseModel):
+    slide_number: int
+    title: str
+    objective: str
+    key_points: list[str] = Field(min_length=3, max_length=5)
+    visual_type: Literal[
+        "title",
+        "agenda",
+        "timeline",
+        "comparison",
+        "architecture",
+        "chart",
+        "table",
+        "case_study",
+        "process",
+        "quote",
+        "closing",
+    ]
+    visual_brief: str
+    speaker_notes: str
+    evidence_orbs: list[str] = Field(default_factory=list)
+
+
+class DeckBlueprint(BaseModel):
+    deck_title: str
+    deck_subtitle: str
+    target_audience: str
+    presentation_goal: str
+    design_direction: str
+    slides: list[SlideBlueprint] = Field(min_length=7, max_length=10)
+
+
+class ChallengerQuestion(BaseModel):
+    question: str
+    why_it_matters: str
+    suggested_answer: str
+    evidence_orbs: list[str] = Field(default_factory=list)
+    severity: Literal["high", "medium", "low"]
+
+
+class GeneratePresentationRequest(BaseModel):
+    topic: str
+    intent: Literal["technical", "business", "academic", "creative"] | None = None
+    include_challenger: bool = True
+    auto_research: bool = True
+
+
+class GeneratedPresentationResponse(BaseModel):
+    topic: str
+    intent: Literal["technical", "business", "academic", "creative"]
+    specialist: SpecialistBrief
+    deck: DeckBlueprint
+    challenger: list[ChallengerQuestion] = Field(default_factory=list)
+    source_context: list[RetrievalResult]
+    auto_researched: bool = False
+    pptx_path: str | None = None
+    download_url: str | None = None

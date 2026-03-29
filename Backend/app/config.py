@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     text_chunk_overlap: int = Field(default=400)
     pdf_pages_per_chunk: int = Field(default=6)
     inline_media_limit_bytes: int = Field(default=20_000_000)
+    generated_presentations_dir: str = Field(default="generated_presentations")
 
     @field_validator("qdrant_api_key", mode="before")
     @classmethod

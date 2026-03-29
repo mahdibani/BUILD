@@ -67,18 +67,31 @@ class QdrantStore:
     def breakdown_by_source(self, chunks: list[ContentChunk]) -> dict[str, int]:
         return dict(Counter(chunk.source for chunk in chunks))
 
-    def search(self, vector: list[float], intent: str, limit: int = 10) -> list[RetrievalResult]:
+    def search(
+        self,
+        vector: list[float],
+        intent: str,
+        limit: int = 10,
+        topic: str | None = None,
+    ) -> list[RetrievalResult]:
+        must_conditions = [
+            qdrant_models.FieldCondition(
+                key="intent",
+                match=qdrant_models.MatchValue(value=intent),
+            )
+        ]
+        if topic:
+            must_conditions.append(
+                qdrant_models.FieldCondition(
+                    key="topic",
+                    match=qdrant_models.MatchValue(value=topic),
+                )
+            )
+
         results = self.client.search(
             collection_name=self.settings.qdrant_collection,
             query_vector=vector,
-            query_filter=qdrant_models.Filter(
-                must=[
-                    qdrant_models.FieldCondition(
-                        key="intent",
-                        match=qdrant_models.MatchValue(value=intent),
-                    )
-                ]
-            ),
+            query_filter=qdrant_models.Filter(must=must_conditions),
             limit=limit,
             with_payload=True,
         )
